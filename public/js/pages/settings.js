@@ -19,6 +19,11 @@ const SettingsPage = {
         </div>
         <button class="btn btn-primary" id="saveNtfyBtn">保存</button>
         <span id="ntfyStatus" style="margin-left:10px;font-size:0.82rem;color:var(--green);display:none;">已保存</span>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" id="testPushBtn">测试推送</button>
+          <button class="btn btn-outline btn-sm" id="enableBrowserNotifyBtn">开启浏览器通知</button>
+        </div>
+        <p id="pushTestResult" style="margin-top:8px;font-size:0.8rem;display:none;"></p>
       </div>
 
       <h2 style="font-size:1rem;margin:20px 0 14px;">DeepSeek AI</h2>
@@ -71,6 +76,42 @@ const SettingsPage = {
         setTimeout(() => { s.style.display = 'none'; }, 2000);
       } catch (err) {
         showToast('错误：' + err.message);
+      }
+    });
+
+    $('#testPushBtn').addEventListener('click', async () => {
+      const topic = $('#ntfyTopic').value;
+      if (!topic) { showToast('请先填写主题名称'); return; }
+      $('#testPushBtn').textContent = '发送中...';
+      $('#testPushBtn').disabled = true;
+      try {
+        const data = await API.post('/api/settings/test-push', { topic });
+        const el = $('#pushTestResult');
+        el.style.display = 'block';
+        el.style.color = 'var(--green)';
+        el.textContent = '测试推送已发送！请查看手机 ntfy App 是否收到消息。如果没收到，检查：1) 手机 ntfy App 是否订阅了同一主题 2) 手机是否允许 ntfy 后台运行';
+        showToast('推送已发送');
+      } catch (err) {
+        const el = $('#pushTestResult');
+        el.style.display = 'block';
+        el.style.color = 'var(--red)';
+        el.textContent = '推送失败：' + err.message;
+      }
+      $('#testPushBtn').textContent = '测试推送';
+      $('#testPushBtn').disabled = false;
+    });
+
+    $('#enableBrowserNotifyBtn').addEventListener('click', async () => {
+      if (!('Notification' in window)) {
+        showToast('你的浏览器不支持通知');
+        return;
+      }
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
+        showToast('浏览器通知已开启');
+        new Notification('个人工作追踪', { body: '通知功能已就绪！即使 ntfy 连不上，浏览器也能弹出提醒。' });
+      } else {
+        showToast('通知权限被拒绝，请在浏览器设置中手动开启');
       }
     });
 

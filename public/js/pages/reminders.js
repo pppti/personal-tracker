@@ -28,7 +28,7 @@ const RemindersPage = {
                 <div class="reminder-msg">${escapeHtml(r.message)}</div>
                 <div class="reminder-time">${formatDate(r.remind_at)}</div>
               </div>
-              <button class="btn btn-outline btn-sm delete-reminder" data-id="${r.id}">删除</button>
+              <button class="btn btn-outline btn-sm del-rem-btn" data-id="${r.id}">删除</button>
             </div>
           `).join('')}
       </div>
@@ -66,16 +66,24 @@ const RemindersPage = {
       }
     });
 
-    $$('.delete-reminder').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        try {
-          await API.del(`/api/reminders/${btn.dataset.id}`);
-          showToast('提醒已删除');
-          this.render(container);
-        } catch (err) {
-          showToast('错误：' + err.message);
-        }
-      });
+    // 事件委托 - 确保删除按钮始终有效
+    const upcomingList = $('#upcomingList');
+    upcomingList.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.del-rem-btn');
+      if (!btn) return;
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      btn.textContent = '...';
+      btn.disabled = true;
+      try {
+        await API.del(`/api/reminders/${id}`);
+        showToast('提醒已删除');
+        this.render(container);
+      } catch (err) {
+        showToast('错误：' + err.message);
+        btn.textContent = '删除';
+        btn.disabled = false;
+      }
     });
   }
 };
