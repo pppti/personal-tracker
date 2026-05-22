@@ -172,6 +172,10 @@ body {
 .badge-pending { background: rgba(255,152,0,0.2); color: var(--yellow); }
 .badge-in_progress { background: rgba(108,99,255,0.2); color: var(--accent); }
 .badge-done { background: rgba(76,175,80,0.2); color: var(--green); }
+.badge-urgent { background: rgba(244,67,54,0.2); color: var(--red); }
+.badge-high { background: rgba(255,152,0,0.2); color: var(--yellow); }
+.badge-medium { background: rgba(108,99,255,0.2); color: var(--accent); }
+.badge-low { background: rgba(136,136,170,0.2); color: var(--text-dim); }
 
 /* Toast */
 .toast {

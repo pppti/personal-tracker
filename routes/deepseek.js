@@ -50,14 +50,17 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'create_entry',
-      description: '创建一条新的工作记录。当用户描述了完成的工作、正在做的事情或计划时使用。',
+      description: '创建一条新的工作记录。当用户描述了完成的工作、正在做的事情或计划时使用。自动推断截止日期、优先级和进度。',
       parameters: {
         type: 'object',
         properties: {
           title: { type: 'string', description: '工作标题，简洁明了' },
           content: { type: 'string', description: '详细内容，可为空' },
           status: { type: 'string', enum: ['pending', 'in_progress', 'done'], description: '状态：pending=待处理, in_progress=进行中, done=已完成' },
-          category: { type: 'string', description: '分类，根据内容自动推断，如：工作、个人、学习、健康、会议等' }
+          category: { type: 'string', description: '分类，根据内容自动推断，如：工作、个人、学习、健康、会议等' },
+          deadline: { type: 'string', description: '截止日期，格式 YYYY-MM-DD。如果用户提到具体时间节点、截止日期、deadline等，必须填写此字段' },
+          priority: { type: 'string', enum: ['urgent', 'high', 'medium', 'low'], description: '优先级。根据deadline自动判断：已过期或今天→urgent，3天内→high，7天内→medium，其他→low' },
+          progress: { type: 'integer', description: '进度百分比 0-100。已完成=100，刚开始=5-10，有一定进展=30-60' }
         },
         required: ['title', 'status']
       }
@@ -83,11 +86,17 @@ const TOOLS = [
 function executeToolCall(name, args) {
   const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
   if (name === 'create_entry') {
+    const deadline = args.deadline || null;
+    const priority = args.priority || 'medium';
+    const progress = typeof args.progress === 'number' ? args.progress : (args.status === 'done' ? 100 : 0);
     const result = db.prepare(
-      'INSERT INTO entries (title, content, status, category, tags, created_at, updated_at) VALUES (?,?,?,?,?,?,?)'
-    ).run(args.title, args.content || '', args.status || 'pending', args.category || '', '[]', now, now);
+      'INSERT INTO entries (title, content, status, category, tags, deadline, priority, progress, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)'
+    ).run(args.title, args.content || '', args.status || 'pending', args.category || '', '[]', deadline, priority, progress, now, now);
     const row = db.prepare('SELECT * FROM entries WHERE id = ?').get(result.lastInsertRowid);
-    sendNotification('AI 已创建记录', `[${row.status}] ${row.title}（${row.category || '未分类'}）`);
+    if (progress > 0) {
+      db.prepare('INSERT INTO progress_log (entry_id, progress, note) VALUES (?,?,?)').run(row.id, progress, 'AI 自动记录');
+    }
+    sendNotification('AI 已创建记录', `[${row.status}] ${row.title}（${row.category || '未分类'}）${deadline ? ' 截止：' + deadline : ''} 优先级：${priority}`);
     return { action: 'create_entry', entry: row };
   }
   if (name === 'set_reminder') {
@@ -167,16 +176,19 @@ router.post('/chat/action', async (req, res) => {
       {
         role: 'system',
         content: `你是一个智能工作助手。你可以帮用户：
-1. 创建/管理工作记录（create_entry）——自动根据内容推断合适的分类（工作、个人、学习、健康、会议、生活等）
-2. 设置提醒闹钟（set_reminder）——自动解析用户说的时间
+1. 创建/管理工作记录（create_entry）——自动推断分类、截止日期(deadline)、优先级(priority)、进度(progress)
+2. 设置提醒闹钟（set_reminder）——自动解析时间
 3. 查询和总结工作
 
 重要规则：
-- 当用户描述了做过的/正在做的/计划做的工作时，主动调用 create_entry 创建记录，并自动推断分类
-- 当用户提到时间+要做某事时，主动调用 set_reminder 设置提醒
-- 每次回复最多进行 3 个操作
-- 如果是纯聊天/问问题，直接回复不用调用工具
-- 操作完成后用简短的中文告诉用户做了什么`
+- 用户提到截止日期/deadline/DDL时，必须设置deadline字段
+- 根据deadline自动判断优先级：已过期或今天→urgent，3天内→high，7天内→medium，其他→low
+- 已完成的任务progress=100，刚开始的5-10，有进展的30-60
+- 用户说"今天要做/需要跟进/别忘了"这类时，设置deadline为今天
+- 当用户描述了做过的/正在做的/计划做的事，主动调用create_entry
+- 当用户提到时间+要做某事，主动调用set_reminder
+- 每次回复最多进行3个操作
+- 操作完成后用简短中文告诉用户做了什么`
       },
       { role: 'user', content: `${context}\n\n用户说：${userMessage}` }
     ], TOOLS);

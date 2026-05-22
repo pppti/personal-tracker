@@ -126,6 +126,25 @@ const EntriesPage = {
             <label>分类</label>
             <input type="text" id="entryCategory" value="${isEdit ? escapeHtml(entry.category || '') : ''}" placeholder="例如：工作、个人、学习">
           </div>
+          <div class="form-group">
+            <label>截止日期</label>
+            <input type="date" id="entryDeadline" value="${isEdit && entry.deadline ? entry.deadline : ''}">
+          </div>
+          <div class="form-group">
+            <label>优先级</label>
+            <select id="entryPriority">
+              <option value="low" ${isEdit && entry.priority === 'low' ? 'selected' : ''}>低</option>
+              <option value="medium" ${isEdit && (entry.priority === 'medium' || !entry.priority) ? 'selected' : ''}>中</option>
+              <option value="high" ${isEdit && entry.priority === 'high' ? 'selected' : ''}>高</option>
+              <option value="urgent" ${isEdit && entry.priority === 'urgent' ? 'selected' : ''}>紧急</option>
+            </select>
+          </div>
+          ${isEdit ? `
+            <div class="form-group">
+              <label>进度：${entry.progress || 0}%</label>
+              <input type="range" id="entryProgress" min="0" max="100" value="${entry.progress || 0}" step="5" style="width:100%;">
+            </div>
+          ` : ''}
           <div class="btn-group">
             <button type="submit" class="btn btn-primary">${isEdit ? '保存' : '创建'}</button>
             ${isEdit ? '<button type="button" class="btn btn-danger" id="deleteEntryBtn">删除</button>' : ''}
@@ -192,8 +211,14 @@ const EntriesPage = {
         title: $('#entryTitle').value,
         content: $('#entryContent').value,
         status: $('#entryStatus').value,
-        category: $('#entryCategory').value
+        category: $('#entryCategory').value,
+        deadline: $('#entryDeadline').value || null,
+        priority: $('#entryPriority').value
       };
+      if (isEdit) {
+        data.progress = parseInt($('#entryProgress').value) || 0;
+        if (data.progress >= 100 && data.status !== 'done') data.status = 'done';
+      }
       try {
         if (isEdit) {
           await API.put(`/api/entries/${entry.id}`, data);
