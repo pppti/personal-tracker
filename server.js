@@ -1,9 +1,10 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
-const { setupRoutes } = require('./auth');
-const { authMiddleware } = require('./auth');
-const { startScheduler } = require('./scheduler');
+
+// Handle uncaught errors gracefully
+process.on('uncaughtException', (err) => { console.error('FATAL:', err.message); process.exit(1); });
+process.on('unhandledRejection', (reason) => { console.error('REJECTION:', reason); });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,8 +12,15 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Health check must work BEFORE auth
+app.get('/health', (_req, res) => res.json({ ok: true }));
+
+// Auth routes (no middleware needed for status/setup/login)
+const { setupRoutes } = require('./auth');
 setupRoutes(app);
 
+// DB-dependent routes (loaded after health endpoint is ready)
+const { authMiddleware } = require('./auth');
 app.use('/api/entries', authMiddleware, require('./routes/entries'));
 app.use('/api/reminders', authMiddleware, require('./routes/reminders'));
 app.use('/api/summary', authMiddleware, require('./routes/summary'));
@@ -23,8 +31,8 @@ app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/health', (_req, res) => res.json({ ok: true }));
-
+// Start scheduler
+const { startScheduler } = require('./scheduler');
 startScheduler();
 
 function getLocalIP() {
@@ -41,8 +49,6 @@ function getLocalIP() {
 }
 
 app.listen(PORT, '0.0.0.0', () => {
-  const ip = getLocalIP();
-  console.log(`本地访问: http://localhost:${PORT}`);
-  console.log(`局域网访问: http://${ip}:${PORT}`);
-  console.log(`手机在同一WiFi下打开 http://${ip}:${PORT} 即可使用`);
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Local: http://localhost:${PORT}`);
 });
