@@ -1,4 +1,4 @@
-const CACHE = 'tracker-v1';
+const CACHE = 'tracker-v2';
 const ASSETS = [
   '/',
   '/css/style.css',
@@ -8,6 +8,8 @@ const ASSETS = [
   '/js/pages/login.js',
   '/js/pages/dashboard.js',
   '/js/pages/entries.js',
+  '/js/pages/ai-chat.js',
+  '/js/pages/today.js',
   '/js/pages/summary.js',
   '/js/pages/reminders.js',
   '/js/pages/settings.js'
