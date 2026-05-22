@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}{% if s %}编辑供应商{% else %}新增供应商{% endif %}{% endblock %}
+{% block content %}
+
+<h5>{% if s %}编辑供应商: {{ s.name }}{% else %}新增供应商{% endif %}</h5>
+
+<form method="post" class="row g-3 mt-1">
+    <div class="col-12"><h6 class="border-bottom pb-1">基本信息</h6></div>
+    <div class="col-md-3">
+        <label class="form-label small">编码 *</label>
+        <input type="text" name="code" class="form-control form-control-sm" value="{{ s.code if s else '' }}" required {% if s %}readonly{% endif %}>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">全称 *</label>
+        <input type="text" name="name" class="form-control form-control-sm" value="{{ s.name if s else '' }}" required>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">简称</label>
+        <input type="text" name="short_name" class="form-control form-control-sm" value="{{ s.short_name if s else '' }}">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">地区</label>
+        <select name="region" class="form-select form-select-sm">
+            <option value="">--</option>
+            {% set regions = ['华东','华南','华北','华中','西南','西北','东北','境外'] %}
+            {% for r in regions %}
+            <option value="{{ r }}" {% if s and s.region==r %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label small">注册地址</label>
+        <input type="text" name="company_address" class="form-control form-control-sm" value="{{ s.company_address if s else '' }}">
+    </div>
+    <div class="col-md-6">
+        <label class="form-label small">工厂地址</label>
+        <input type="text" name="factory_address" class="form-control form-control-sm" value="{{ s.factory_address if s else '' }}">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">国家</label>
+        <input type="text" name="country" class="form-control form-control-sm" value="{{ s.country if s else '中国' }}">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">官网</label>
+        <input type="url" name="website" class="form-control form-control-sm" value="{{ s.website if s else '' }}">
+    </div>
+
+    <div class="col-12"><h6 class="border-bottom pb-1 mt-2">资质信息</h6></div>
+    <div class="col-md-3">
+        <label class="form-label small">营业执照号</label>
+        <input type="text" name="business_license" class="form-control form-control-sm" value="{{ s.business_license if s else '' }}">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">法定代表人</label>
+        <input type="text" name="legal_representative" class="form-control form-control-sm" value="{{ s.legal_representative if s else '' }}">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">注册资本（万元）</label>
+        <input type="number" name="registered_capital" class="form-control form-control-sm" step="0.01" value="{{ s.registered_capital if s else '' }}">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">成立日期</label>
+        <input type="date" name="established_date" class="form-control form-control-sm" value="{{ s.established_date if s else '' }}">
+    </div>
+
+    <div class="col-12"><h6 class="border-bottom pb-1 mt-2">合作信息</h6></div>
+    <div class="col-md-3">
+        <label class="form-label small">合作状态</label>
+        <select name="cooperation_status" class="form-select form-select-sm">
+            {% set statuses = ['POTENTIAL','TRIAL','QUALIFIED','STRATEGIC','SUSPENDED','BLACKLIST'] %}
+            {% for st in statuses %}
+            <option value="{{ st }}" {% if s and s.cooperation_status==st %}selected{% elif not s and st=='POTENTIAL' %}selected{% endif %}>{{ st }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">结算方式</label>
+        <select name="settlement_method" class="form-select form-select-sm">
+            <option value="">--</option>
+            {% set methods = ['T/T','L/C','MONTHLY_BILL','CASH_ON_DELIVERY','OTHER'] %}
+            {% for m in methods %}<option value="{{ m }}" {% if s and s.settlement_method==m %}selected{% endif %}>{{ m }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">付款条件</label>
+        <input type="text" name="payment_terms" class="form-control form-control-sm" placeholder="月结60天" value="{{ s.payment_terms if s else '' }}">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">税率</label>
+        <input type="number" name="tax_rate" class="form-control form-control-sm" step="0.0001" min="0" max="1" placeholder="0.13" value="{{ s.tax_rate if s else '' }}">
+    </div>
+    <div class="col-md-12">
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="is_general_taxpayer" value="1" id="igt"
+                   {% if not s or s.is_general_taxpayer %}checked{% endif %}>
+            <label class="form-check-label small" for="igt">一般纳税人</label>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">备注</label>
+        <textarea name="remark" class="form-control form-control-sm" rows="2">{{ s.remark if s else '' }}</textarea>
+    </div>
+
+    <div class="col-12 mt-3">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% if s %}/suppliers/{{ s.id }}{% else %}/suppliers{% endif %}" class="btn btn-outline-secondary ms-2">取消</a>
+    </div>
+</form>
+{% endblock %}

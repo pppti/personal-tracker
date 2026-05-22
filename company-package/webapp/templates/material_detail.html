@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}{{ m.name }} - 包材详情{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5><i class="bi bi-box"></i> {{ m.name }} <small class="text-muted">({{ m.code }})</small></h5>
+    <div>
+        <a href="/materials/{{ m.id }}/edit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil"></i> 编辑</a>
+        <a href="/materials" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-left"></i> 返回</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header fw-bold">基本信息</div>
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-4">编码</dt><dd class="col-8">{{ m.code }}</dd>
+                    <dt class="col-4">名称</dt><dd class="col-8">{{ m.name }}</dd>
+                    <dt class="col-4">分类</dt><dd class="col-8">{{ m.cat_path }}</dd>
+                    <dt class="col-4">材质</dt><dd class="col-8">{{ m.material_type or '-' }}</dd>
+                    <dt class="col-4">容量/规格</dt><dd class="col-8">{{ m.spec_capacity or '-' }}</dd>
+                    <dt class="col-4">颜色</dt><dd class="col-8">{{ m.spec_color or '-' }}</dd>
+                    <dt class="col-4">表面处理</dt><dd class="col-8">{{ m.spec_finish or '-' }}</dd>
+                    <dt class="col-4">状态</dt><dd class="col-8"><span class="badge bg-{{ status_badge(m.status) }}">{{ m.status }}</span></dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header fw-bold">印刷与模具</div>
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-4">印刷工艺</dt><dd class="col-8">{{ m.printing_process or '-' }}</dd>
+                    <dt class="col-4">印刷色数</dt><dd class="col-8">{{ m.printing_colors or '-' }}</dd>
+                    <dt class="col-4">需开模</dt><dd class="col-8">{% if m.has_custom_mold %}是{% else %}否{% endif %}</dd>
+                    <dt class="col-4">模具归属</dt><dd class="col-8">{{ m.mold_owner or '-' }}</dd>
+                    <dt class="col-4">模具寿命</dt><dd class="col-8">{{ m.mold_lifecycle or '-' }}</dd>
+                    <dt class="col-4">适用产品</dt><dd class="col-8">{{ m.suitable_for or '-' }}</dd>
+                    <dt class="col-4">最小起订量</dt><dd class="col-8">{{ m.min_order_qty or '-' }} {{ m.unit or '' }}</dd>
+                    <dt class="col-4">常规交期(天)</dt><dd class="col-8">{{ m.typical_lead_time or '-' }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 规格扩展信息 -->
+{% if spec %}
+<div class="card mt-3">
+    <div class="card-header fw-bold">规格详情 ({{ spec._type }})</div>
+    <div class="card-body">
+        <dl class="row mb-0 small">
+        {% if spec._type == 'material_spec_bottle' %}
+            <dt class="col-3">瓶型</dt><dd class="col-3">{{ spec.bottle_type or '-' }}</dd>
+            <dt class="col-3">瓶身材质</dt><dd class="col-3">{{ spec.body_material or '-' }}</dd>
+            <dt class="col-3">瓶口规格</dt><dd class="col-3">{{ spec.neck_finish or '-' }}</dd>
+            <dt class="col-3">直径(mm)</dt><dd class="col-3">{{ spec.diameter or '-' }}</dd>
+            <dt class="col-3">高度(mm)</dt><dd class="col-3">{{ spec.height or '-' }}</dd>
+            <dt class="col-3">重量(g)</dt><dd class="col-3">{{ spec.weight or '-' }}</dd>
+            <dt class="col-3">壁厚(mm)</dt><dd class="col-3">{{ spec.wall_thickness or '-' }}</dd>
+            <dt class="col-3">内塞</dt><dd class="col-3">{% if spec.has_inner_plug %}有{% else %}无{% endif %}</dd>
+            <dt class="col-3">密封方式</dt><dd class="col-3">{{ spec.seal_type or '-' }}</dd>
+        {% elif spec._type == 'material_spec_tube' %}
+            <dt class="col-3">管型</dt><dd class="col-3">{{ spec.tube_type or '-' }}</dd>
+            <dt class="col-3">管身材质</dt><dd class="col-3">{{ spec.tube_material or '-' }}</dd>
+            <dt class="col-3">管径(mm)</dt><dd class="col-3">{{ spec.diameter or '-' }}</dd>
+            <dt class="col-3">管长(mm)</dt><dd class="col-3">{{ spec.tube_length or '-' }}</dd>
+            <dt class="col-3">容量(ml)</dt><dd class="col-3">{{ spec.capacity_ml or '-' }}</dd>
+            <dt class="col-3">封尾方式</dt><dd class="col-3">{{ spec.seal_method or '-' }}</dd>
+            <dt class="col-3">盖型</dt><dd class="col-3">{{ spec.cap_type or '-' }}</dd>
+            <dt class="col-3">铝箔封口</dt><dd class="col-3">{% if spec.has_aluminum_seal %}是{% else %}否{% endif %}</dd>
+        {% elif spec._type == 'material_spec_carton' %}
+            <dt class="col-3">盒型</dt><dd class="col-3">{{ spec.carton_type or '-' }}</dd>
+            <dt class="col-3">基材</dt><dd class="col-3">{{ spec.base_paper or '-' }}</dd>
+            <dt class="col-3">克重(g/m²)</dt><dd class="col-3">{{ spec.paper_gsm or '-' }}</dd>
+            <dt class="col-3">长(mm)</dt><dd class="col-3">{{ spec.length or '-' }}</dd>
+            <dt class="col-3">宽(mm)</dt><dd class="col-3">{{ spec.width or '-' }}</dd>
+            <dt class="col-3">高(mm)</dt><dd class="col-3">{{ spec.height or '-' }}</dd>
+            <dt class="col-3">表面处理</dt><dd class="col-3">{{ spec.surface_process or '-' }}</dd>
+            <dt class="col-3">印刷</dt><dd class="col-3">{{ spec.printing_colors or '-' }}</dd>
+        {% elif spec._type in ('material_spec_dispenser', 'material_spec_cap', 'material_spec_label', 'material_spec_pouch', 'material_spec_corrugated') %}
+            {% for k, v in spec.items() %}
+            {% if k not in ('id','material_id','_type') %}
+            <dt class="col-3">{{ k }}</dt><dd class="col-3">{{ v or '-' }}</dd>
+            {% endif %}
+            {% endfor %}
+        {% endif %}
+        </dl>
+    </div>
+</div>
+{% endif %}
+
+<!-- 可供应供应商 -->
+<div class="card mt-3">
+    <div class="card-header fw-bold">可供应供应商</div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>供应商</th><th>最新单价</th><th>月产能</th><th>交期(天)</th><th>样品确认</th><th>首选</th><th>状态</th></tr></thead>
+            <tbody>
+            {% for s in suppliers %}
+            <tr>
+                <td><a href="/suppliers/{{ s.supplier_id }}">{{ s.sup_name }}</a></td>
+                <td class="text-end">{{ s.latest_unit_price or '-' }}</td>
+                <td>{{ s.monthly_capacity or '-' }}</td>
+                <td>{{ s.typical_lead_time or '-' }}</td>
+                <td>{% if s.sample_approved %}<span class="badge bg-success">已确认</span>{% else %}<span class="badge bg-warning">待确认</span>{% endif %}</td>
+                <td>{% if s.is_preferred %}⭐{% endif %}</td>
+                <td><span class="badge bg-{{ status_badge(s.cooperation_status) }}">{{ s.cooperation_status }}</span></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 历史报价 -->
+<div class="card mt-3">
+    <div class="card-header fw-bold">历史报价记录（最近20条）</div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>报价日期</th><th>供应商</th><th>数量</th><th>单价</th><th>模具费</th><th>打样费</th><th>交期</th></tr></thead>
+            <tbody>
+            {% for q in quotations %}
+            <tr>
+                <td>{{ q.quotation_date }}</td><td>{{ q.sup_name }}</td>
+                <td>{{ q.quantity or '-' }}</td>
+                <td class="text-end">¥{{ "%.4f"|format(q.unit_price) }}</td>
+                <td class="text-end">{{ q.mold_fee or '-' }}</td>
+                <td class="text-end">{{ q.sample_fee or '-' }}</td>
+                <td>{{ q.lead_time_days or '-' }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Remove-Item d:\\\\vs-claude\\\\webapp\\\\init_db.py -ErrorAction SilentlyContinue; Get-ChildItem -Recurse d:\\\\vs-claude\\\\webapp | Where-Object { -not $_.PSIsContainer } | ForEach-Object { $_.FullName.Replace\\('d:\\\\vs-claude\\\\webapp\\\\', ''\\) } | Sort-Object)",
+      "PowerShell(Get-Command sqlite3 -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Command mysql -ErrorAction SilentlyContinue)"
+    ]
+  }
+}

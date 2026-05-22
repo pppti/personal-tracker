@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}{% if po %}编辑采购订单{% else %}新增采购订单{% endif %}{% endblock %}
+{% block content %}
+
+<h5>{% if po %}编辑采购订单: {{ po.order_no }}{% else %}新增采购订单{% endif %}</h5>
+
+<form method="post" class="row g-3 mt-1">
+    <div class="col-12"><h6 class="border-bottom pb-1">订单信息</h6></div>
+    <div class="col-md-3">
+        <label class="form-label small">订单号 *</label>
+        <input type="text" name="order_no" class="form-control form-control-sm" value="{{ po.order_no if po else '' }}" required>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">供应商 *</label>
+        <select name="supplier_id" class="form-select form-select-sm" required>
+            <option value="">-- 选择供应商 --</option>
+            {% for s in suppliers %}
+            <option value="{{ s.id }}" {% if po and po.supplier_id==s.id %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">关联报价单</label>
+        <select name="quotation_id" class="form-select form-select-sm">
+            <option value="">--</option>
+            {% for q in quotations %}
+            <option value="{{ q.id }}" {% if po and po.quotation_id==q.id %}selected{% endif %}>{{ q.quotation_no }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">下单日期 *</label>
+        <input type="date" name="order_date" class="form-control form-control-sm" value="{{ po.order_date if po else now }}" required>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">预计到货</label>
+        <input type="date" name="expected_delivery" class="form-control form-control-sm" value="{{ po.expected_delivery if po else '' }}">
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small">紧急程度</label>
+        <select name="urgency" class="form-select form-select-sm">
+            <option value="NORMAL" {% if not po or po.urgency=='NORMAL' %}selected{% endif %}>正常</option>
+            <option value="URGENT" {% if po and po.urgency=='URGENT' %}selected{% endif %}>紧急</option>
+            <option value="CRITICAL" {% if po and po.urgency=='CRITICAL' %}selected{% endif %}>特急</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small">状态</label>
+        <select name="status" class="form-select form-select-sm">
+            <option value="DRAFT" {% if not po or po.status=='DRAFT' %}selected{% endif %}>草稿</option>
+            <option value="CONFIRMED" {% if po and po.status=='CONFIRMED' %}selected{% endif %}>已确认</option>
+            <option value="IN_PRODUCTION" {% if po and po.status=='IN_PRODUCTION' %}selected{% endif %}>生产中</option>
+            <option value="SHIPPING" {% if po and po.status=='SHIPPING' %}selected{% endif %}>运输中</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small">运输方式</label>
+        <input type="text" name="shipping_method" class="form-control form-control-sm" value="{{ po.shipping_method if po else '' }}">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">物流单号</label>
+        <input type="text" name="tracking_no" class="form-control form-control-sm" value="{{ po.tracking_no if po else '' }}">
+    </div>
+    <div class="col-md-12">
+        <label class="form-label small">备注</label>
+        <textarea name="remark" class="form-control form-control-sm" rows="2">{{ po.remark if po else '' }}</textarea>
+    </div>
+
+    <!-- 订单明细 -->
+    <div class="col-12"><h6 class="border-bottom pb-1 mt-2">订单明细</h6></div>
+    <div class="col-12">
+        <table class="table table-sm" id="itemsTable">
+            <thead class="table-light"><tr><th>包材</th><th>数量</th><th>单价</th><th>预计到货</th><th></th></tr></thead>
+            <tbody>
+            {% if items %}
+            {% for item in items %}
+            <tr>
+                <td>{{ item.mat_code }} {{ item.mat_name }}</td>
+                <td class="text-end">{{ item.order_qty }}</td>
+                <td class="text-end">¥{{ "%.4f"|format(item.unit_price) }}</td>
+                <td>{{ item.expected_date or '-' }}</td>
+                <td></td>
+            </tr>
+            {% endfor %}
+            {% endif %}
+            </tbody>
+            <tfoot>
+                <tr id="addRow">
+                    <td>
+                        <select class="form-select form-select-sm item-material">
+                            <option value="">-- 添加包材 --</option>
+                            {% for m in materials %}
+                            <option value="{{ m.id }}">{{ m.code }} {{ m.name }} {{ m.spec_capacity or '' }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td><input type="number" class="form-control form-control-sm item-qty" placeholder="数量" style="width:80px"></td>
+                    <td><input type="number" class="form-control form-control-sm item-price" step="0.0001" placeholder="单价" style="width:100px"></td>
+                    <td><input type="date" class="form-control form-control-sm item-date" style="width:140px"></td>
+                    <td><button type="button" class="btn btn-outline-primary btn-sm" onclick="addItem(this)"><i class="bi bi-plus"></i></button></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <div class="col-12 mt-3">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% if po %}/purchases/{{ po.id }}{% else %}/purchases{% endif %}" class="btn btn-outline-secondary ms-2">取消</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function addItem(btn) {
+    var row = btn.closest('tr');
+    var sel = row.querySelector('.item-material');
+    var matId = sel.value;
+    var matText = sel.options[sel.selectedIndex].text;
+    if (!matId) return;
+    var tbody = row.parentElement;
+
+    var fields = {
+        'item_material_id': matId,
+        'item_order_qty': row.querySelector('.item-qty').value,
+        'item_unit_price': row.querySelector('.item-price').value,
+        'item_expected_date': row.querySelector('.item-date').value
+    };
+    var tr = document.createElement('tr');
+    Object.entries(fields).forEach(function(e) {
+        var inp = document.createElement('input'); inp.type='hidden'; inp.name=e[0]; inp.value=e[1];
+        tr.appendChild(inp);
+    });
+    var td = document.createElement('td'); td.colSpan=5; td.innerHTML = matText;
+    tr.appendChild(td);
+    tbody.insertBefore(tr, row);
+    sel.value=''; row.querySelector('.item-qty').value='';
+    row.querySelector('.item-price').value=''; row.querySelector('.item-date').value='';
+}
+</script>
+{% endblock %}

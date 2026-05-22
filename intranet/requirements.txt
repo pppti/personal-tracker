@@ -1,0 +1,4 @@
+# Docker 版 (MySQL 后端) 依赖
+flask>=3.0
+mysql-connector-python>=8.3
+# SQLite 版无需安装任何依赖，Python 标准库即可运行

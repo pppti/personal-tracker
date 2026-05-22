@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}采购订单 {{ po.order_no }}{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5><i class="bi bi-cart"></i> 采购订单 {{ po.order_no }}</h5>
+    <div>
+        <a href="/purchases/{{ po.id }}/edit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil"></i> 编辑</a>
+        <a href="/purchases" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-left"></i> 返回</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header fw-bold">订单信息</div>
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-4">订单号</dt><dd class="col-8">{{ po.order_no }}</dd>
+                    <dt class="col-4">供应商</dt><dd class="col-8"><a href="/suppliers/{{ po.supplier_id }}">{{ po.supplier_name }}</a> ({{ po.region or '-' }})</dd>
+                    <dt class="col-4">下单日期</dt><dd class="col-8">{{ po.order_date }}</dd>
+                    <dt class="col-4">预计到货</dt><dd class="col-8">{{ po.expected_delivery or '-' }}</dd>
+                    <dt class="col-4">实际到货</dt><dd class="col-8">{{ po.actual_delivery or '-' }}</dd>
+                    <dt class="col-4">紧急程度</dt><dd class="col-8"><span class="badge bg-{{ status_badge(po.urgency) }}">{{ po.urgency }}</span></dd>
+                    <dt class="col-4">状态</dt><dd class="col-8"><span class="badge bg-{{ status_badge(po.status) }}">{{ po.status }}</span></dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header fw-bold">金额与物流</div>
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-4">币种</dt><dd class="col-8">{{ po.currency or 'CNY' }}</dd>
+                    <dt class="col-4">总金额</dt><dd class="col-8 fw-bold">{% if po.total_amount %}¥{{ "%.2f"|format(po.total_amount) }}{% else %}-{% endif %}</dd>
+                    <dt class="col-4">已付金额</dt><dd class="col-8">¥{{ "%.2f"|format(po.paid_amount or 0) }}</dd>
+                    <dt class="col-4">运输方式</dt><dd class="col-8">{{ po.shipping_method or '-' }}</dd>
+                    <dt class="col-4">物流单号</dt><dd class="col-8">{{ po.tracking_no or '-' }}</dd>
+                    <dt class="col-4">备注</dt><dd class="col-8">{{ po.remark or '-' }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 订单明细 -->
+<div class="card mt-3">
+    <div class="card-header fw-bold">订单明细</div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>行号</th><th>包材</th><th>订购量</th><th>已收量</th><th>单价</th><th>小计</th><th>批号</th><th>状态</th><th>收货</th></tr></thead>
+            <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.item_seq }}</td>
+                <td><a href="/materials/{{ item.material_id }}">{{ item.mat_code }} {{ item.mat_name }}</a></td>
+                <td>{{ item.order_qty }}</td>
+                <td>{{ item.received_qty }}</td>
+                <td class="text-end">¥{{ "%.4f"|format(item.unit_price) }}</td>
+                <td class="text-end">¥{{ "%.2f"|format(item.line_total or 0) }}</td>
+                <td>{{ item.batch_no or '-' }}</td>
+                <td><span class="badge bg-{{ status_badge(item.status) }}">{{ item.status }}</span></td>
+                <td>
+                    {% if item.status != 'COMPLETED' %}
+                    <form method="post" action="/purchases/{{ po.id }}/receive" class="row g-1" style="min-width:200px">
+                        <input type="hidden" name="item_id" value="{{ item.id }}">
+                        <div class="col-7"><input type="number" name="received_qty" class="form-control form-control-sm" min="1" max="{{ item.order_qty - item.received_qty }}" placeholder="数量" required></div>
+                        <div class="col-5"><button class="btn btn-success btn-sm w-100">收货</button></div>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 发货记录 -->
+<div class="card mt-3">
+    <div class="card-header d-flex justify-content-between align-items-center fw-bold">
+        发货/物流记录
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#deliveryModal"><i class="bi bi-plus-lg"></i> 添加</button>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>发货日</th><th>数量</th><th>承运商</th><th>物流单号</th><th>预计到达</th><th>实际到达</th></tr></thead>
+            <tbody>
+            {% for d in deliveries %}
+            <tr><td>{{ d.delivery_date or '-' }}</td><td>{{ d.delivery_qty or '-' }}</td><td>{{ d.carrier or '-' }}</td><td>{{ d.tracking_no or '-' }}</td><td>{{ d.estimated_arrival or '-' }}</td><td>{{ d.actual_arrival or '-' }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 发货弹窗 -->
+<div class="modal fade" id="deliveryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form class="modal-content" method="post" action="/purchases/{{ po.id }}/delivery">
+            <div class="modal-header"><h6 class="modal-title">添加发货记录</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="row g-2">
+                    <div class="col-md-6"><label class="form-label small">发货日期 *</label><input type="date" name="delivery_date" class="form-control form-control-sm" required></div>
+                    <div class="col-md-6"><label class="form-label small">发货数量 *</label><input type="number" name="delivery_qty" class="form-control form-control-sm" required></div>
+                    <div class="col-md-6"><label class="form-label small">承运商</label><input type="text" name="carrier" class="form-control form-control-sm"></div>
+                    <div class="col-md-6"><label class="form-label small">物流单号</label><input type="text" name="tracking_no" class="form-control form-control-sm"></div>
+                    <div class="col-md-6"><label class="form-label small">预计到货</label><input type="date" name="estimated_arrival" class="form-control form-control-sm"></div>
+                </div>
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-primary btn-sm">保存</button></div>
+        </form>
+    </div>
+</div>
+
+<!-- 质检记录 -->
+<div class="card mt-3">
+    <div class="card-header fw-bold">质检记录</div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>质检单号</th><th>日期</th><th>包材</th><th>抽样</th><th>不良</th><th>结论</th><th>处理</th></tr></thead>
+            <tbody>
+            {% for qi in inspections %}
+            <tr>
+                <td><a href="/qualities/{{ qi.id }}">{{ qi.inspection_no }}</a></td>
+                <td>{{ qi.inspection_date }}</td><td>{{ qi.mat_name or '整单' }}</td>
+                <td>{{ qi.sample_qty or '-' }}/{{ qi.lot_qty or '-' }}</td>
+                <td>{{ qi.defect_qty }}</td>
+                <td><span class="badge bg-{{ status_badge(qi.result) }}">{{ qi.result }}</span></td>
+                <td>{{ qi.handle_method or '-' }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

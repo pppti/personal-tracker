@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}{% if q %}编辑报价单{% else %}新增报价单{% endif %}{% endblock %}
+{% block content %}
+
+<h5>{% if q %}编辑报价单: {{ q.quotation_no }}{% else %}新增报价单{% endif %}</h5>
+
+<form method="post" class="row g-3 mt-1">
+    <div class="col-12"><h6 class="border-bottom pb-1">报价单信息</h6></div>
+    <div class="col-md-3">
+        <label class="form-label small">报价单号 *</label>
+        <input type="text" name="quotation_no" class="form-control form-control-sm" value="{{ q.quotation_no if q else '' }}" required>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">供应商 *</label>
+        <select name="supplier_id" class="form-select form-select-sm" required>
+            <option value="">-- 选择供应商 --</option>
+            {% for s in suppliers %}
+            <option value="{{ s.id }}" {% if q and q.supplier_id==s.id %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small">报价日期 *</label>
+        <input type="date" name="quotation_date" class="form-control form-control-sm" value="{{ q.quotation_date if q else now }}" required>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small">有效期至</label>
+        <input type="date" name="valid_until" class="form-control form-control-sm" value="{{ q.valid_until if q else '' }}">
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small">状态</label>
+        <select name="status" class="form-select form-select-sm">
+            <option value="DRAFT" {% if q and q.status=='DRAFT' %}selected{% endif %}>草稿</option>
+            <option value="CONFIRMED" {% if q and q.status=='CONFIRMED' %}selected{% endif %}>已确认</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small">币种</label>
+        <select name="currency" class="form-select form-select-sm">
+            <option value="CNY" {% if not q or q.currency=='CNY' %}selected{% endif %}>CNY</option>
+            <option value="USD" {% if q and q.currency=='USD' %}selected{% endif %}>USD</option>
+            <option value="EUR" {% if q and q.currency=='EUR' %}selected{% endif %}>EUR</option>
+            <option value="JPY" {% if q and q.currency=='JPY' %}selected{% endif %}>JPY</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small">贸易术语</label>
+        <select name="incoterm" class="form-select form-select-sm">
+            <option value="">--</option>
+            <option value="FOB" {% if q and q.incoterm=='FOB' %}selected{% endif %}>FOB</option>
+            <option value="CIF" {% if q and q.incoterm=='CIF' %}selected{% endif %}>CIF</option>
+            <option value="EXW" {% if q and q.incoterm=='EXW' %}selected{% endif %}>EXW</option>
+            <option value="DDP" {% if q and q.incoterm=='DDP' %}selected{% endif %}>DDP</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small">联系人</label>
+        <input type="text" name="contact_person" class="form-control form-control-sm" value="{{ q.contact_person if q else '' }}">
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small">联系电话</label>
+        <input type="text" name="contact_phone" class="form-control form-control-sm" value="{{ q.contact_phone if q else '' }}">
+    </div>
+    <div class="col-md-12">
+        <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="is_tax_included" value="1" id="iti" {% if not q or q.is_tax_included %}checked{% endif %}> <label class="form-check-label small" for="iti">含税</label></div>
+        <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="is_shipping_included" value="1" id="isi" {% if q and q.is_shipping_included %}checked{% endif %}> <label class="form-check-label small" for="isi">含运费</label></div>
+    </div>
+    <div class="col-md-12">
+        <label class="form-label small">备注</label>
+        <textarea name="remark" class="form-control form-control-sm" rows="2">{{ q.remark if q else '' }}</textarea>
+    </div>
+
+    <!-- 报价明细 -->
+    <div class="col-12"><h6 class="border-bottom pb-1 mt-2">报价明细</h6></div>
+    <div class="col-12">
+        <table class="table table-sm" id="itemsTable">
+            <thead class="table-light"><tr><th>包材</th><th>数量</th><th>单价</th><th>模具费</th><th>打样费</th><th>交期(天)</th><th></th></tr></thead>
+            <tbody>
+            {% if items %}
+            {% for item in items %}
+            <tr>
+                <td>{{ item.mat_name or item.mat_code }}</td>
+                <td class="text-end">{{ item.quantity or '-' }}</td>
+                <td class="text-end">¥{{ "%.4f"|format(item.unit_price) }}</td>
+                <td class="text-end">{{ item.mold_fee or '-' }}</td>
+                <td class="text-end">{{ item.sample_fee or '-' }}</td>
+                <td>{{ item.lead_time_days or '-' }}</td>
+                <td></td>
+            </tr>
+            {% endfor %}
+            {% endif %}
+            </tbody>
+            <tfoot>
+                <tr id="addRow">
+                    <td>
+                        <select class="form-select form-select-sm item-material">
+                            <option value="">-- 添加包材 --</option>
+                            {% for m in materials %}
+                            <option value="{{ m.id }}">{{ m.code }} {{ m.name }} {{ m.spec_capacity or '' }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td><input type="number" class="form-control form-control-sm item-qty" placeholder="数量" style="width:80px"></td>
+                    <td><input type="number" class="form-control form-control-sm item-price" step="0.0001" placeholder="单价" style="width:100px"></td>
+                    <td><input type="number" class="form-control form-control-sm item-mold" step="0.01" placeholder="0" style="width:80px"></td>
+                    <td><input type="number" class="form-control form-control-sm item-sample" step="0.01" placeholder="0" style="width:80px"></td>
+                    <td><input type="number" class="form-control form-control-sm item-lead" placeholder="天" style="width:60px"></td>
+                    <td><button type="button" class="btn btn-outline-primary btn-sm" onclick="addItem(this)"><i class="bi bi-plus"></i></button></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <div class="col-12 mt-3">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="/quotations" class="btn btn-outline-secondary ms-2">取消</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function addItem(btn) {
+    var sel = btn.closest('tr').querySelector('.item-material');
+    var matId = sel.value;
+    var matText = sel.options[sel.selectedIndex].text;
+    if (!matId) return;
+    var row = btn.closest('tr');
+    var tbody = row.parentElement;
+
+    // hidden inputs for actual submission
+    var hiddens = [
+        ['item_material_id', matId],
+        ['item_quantity', row.querySelector('.item-qty').value],
+        ['item_unit_price', row.querySelector('.item-price').value],
+        ['item_mold_fee', row.querySelector('.item-mold').value],
+        ['item_sample_fee', row.querySelector('.item-sample').value],
+        ['item_lead_time', row.querySelector('.item-lead').value]
+    ];
+    var tr = document.createElement('tr');
+    hiddens.forEach(function(h) {
+        var inp = document.createElement('input'); inp.type='hidden'; inp.name=h[0]; inp.value=h[1];
+        tr.appendChild(inp);
+    });
+    var td = document.createElement('td'); td.colSpan=7; td.innerHTML = matText;
+    tr.appendChild(td);
+    tbody.insertBefore(tr, row);
+    // reset inputs
+    sel.value=''; row.querySelector('.item-qty').value='';
+    row.querySelector('.item-price').value=''; row.querySelector('.item-mold').value='0';
+    row.querySelector('.item-sample').value='0'; row.querySelector('.item-lead').value='';
+}
+</script>
+{% endblock %}

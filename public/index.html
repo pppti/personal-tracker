@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/manifest.json">
+  <title>个人工作追踪</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="app">
+    <header id="topbar" class="hidden">
+      <button id="menuBtn" class="icon-btn" aria-label="菜单">&#9776;</button>
+      <h1 id="pageTitle">工作台</h1>
+      <button id="logoutBtn" class="icon-btn" aria-label="退出">&#10140;</button>
+    </header>
+    <nav id="sidebar" class="hidden">
+      <a href="#dashboard" class="nav-item" data-page="dashboard">工作台</a>
+      <a href="#entries" class="nav-item" data-page="entries">工作记录</a>
+      <a href="#ai-chat" class="nav-item" data-page="ai-chat">AI 助手</a>
+      <a href="#summary" class="nav-item" data-page="summary">汇总导出</a>
+      <a href="#reminders" class="nav-item" data-page="reminders">提醒闹钟</a>
+      <a href="#settings" class="nav-item" data-page="settings">设置</a>
+    </nav>
+    <main id="main-content"></main>
+    <div id="overlay" class="hidden"></div>
+    <div id="toast" class="toast hidden"></div>
+  </div>
+  <script src="/js/utils.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/pages/login.js"></script>
+  <script src="/js/pages/dashboard.js"></script>
+  <script src="/js/pages/entries.js"></script>
+  <script src="/js/pages/ai-chat.js"></script>
+  <script src="/js/pages/summary.js"></script>
+  <script src="/js/pages/reminders.js"></script>
+  <script src="/js/pages/settings.js"></script>
+  <script src="/js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js');
+    }
+  </script>
+</body>
+</html>

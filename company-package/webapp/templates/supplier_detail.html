@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block title %}{{ s.name }} - 供应商详情{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5><i class="bi bi-person-badge"></i> {{ s.name }} <small class="text-muted">({{ s.code }})</small></h5>
+    <div>
+        <a href="/suppliers/{{ s.id }}/edit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil"></i> 编辑</a>
+        <a href="/suppliers" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-left"></i> 返回</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header fw-bold">基本信息</div>
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-4">供应商编码</dt><dd class="col-8">{{ s.code }}</dd>
+                    <dt class="col-4">全称</dt><dd class="col-8">{{ s.name }}</dd>
+                    <dt class="col-4">简称</dt><dd class="col-8">{{ s.short_name or '-' }}</dd>
+                    <dt class="col-4">注册地址</dt><dd class="col-8">{{ s.company_address or '-' }}</dd>
+                    <dt class="col-4">工厂地址</dt><dd class="col-8">{{ s.factory_address or '-' }}</dd>
+                    <dt class="col-4">地区</dt><dd class="col-8">{{ s.region or '-' }} / {{ s.country or '-' }}</dd>
+                    <dt class="col-4">官网</dt><dd class="col-8">{{ s.website or '-' }}</dd>
+                </dl>
+            </div>
+        </div>
+        <div class="card mt-3">
+            <div class="card-header fw-bold">资质信息</div>
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-4">营业执照号</dt><dd class="col-8">{{ s.business_license or '-' }}</dd>
+                    <dt class="col-4">法定代表人</dt><dd class="col-8">{{ s.legal_representative or '-' }}</dd>
+                    <dt class="col-4">注册资本</dt><dd class="col-8">{% if s.registered_capital %}¥{{ "%.2f"|format(s.registered_capital) }}万{% else %}-{% endif %}</dd>
+                    <dt class="col-4">成立日期</dt><dd class="col-8">{{ s.established_date or '-' }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header fw-bold">合作信息</div>
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-4">合作状态</dt><dd class="col-8"><span class="badge bg-{{ status_badge(s.cooperation_status) }}">{{ s.cooperation_status }}</span></dd>
+                    <dt class="col-4">结算方式</dt><dd class="col-8">{{ s.settlement_method or '-' }}</dd>
+                    <dt class="col-4">付款条件</dt><dd class="col-8">{{ s.payment_terms or '-' }}</dd>
+                    <dt class="col-4">税率</dt><dd class="col-8">{% if s.tax_rate %}{{ "%.1f"|format(s.tax_rate*100) }}%{% else %}-{% endif %}</dd>
+                    <dt class="col-4">一般纳税人</dt><dd class="col-8">{% if s.is_general_taxpayer %}是{% else %}否{% endif %}</dd>
+                    <dt class="col-4">综合评分</dt><dd class="col-8">{{ s.composite_score or '-' }}</dd>
+                    <dt class="col-4">备注</dt><dd class="col-8">{{ s.remark or '-' }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 联系人 -->
+<div class="card mt-3">
+    <div class="card-header d-flex justify-content-between align-items-center fw-bold">
+        联系人
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addContactModal"><i class="bi bi-plus-lg"></i> 添加</button>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>姓名</th><th>职务</th><th>部门</th><th>手机</th><th>邮箱</th><th>微信</th><th>主要</th><th></th></tr></thead>
+            <tbody>
+            {% for c in contacts %}
+            <tr>
+                <td>{{ c.name }}</td><td>{{ c.title or '-' }}</td><td>{{ c.department or '-' }}</td>
+                <td>{{ c.mobile or '-' }}</td><td>{{ c.email or '-' }}</td><td>{{ c.wechat or '-' }}</td>
+                <td>{% if c.is_primary %}<span class="badge bg-success">是</span>{% else %}-{% endif %}</td>
+                <td>
+                    <form method="post" action="/suppliers/{{ s.id }}/contacts/{{ c.id }}/delete" style="display:inline"
+                          onsubmit="return confirm('确认删除？')">
+                        <button class="btn btn-outline-danger btn-xs"><i class="bi bi-trash"></i></button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 联系人添加弹窗 -->
+<div class="modal fade" id="addContactModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form class="modal-content" method="post" action="/suppliers/{{ s.id }}/contacts/new">
+            <div class="modal-header"><h6 class="modal-title">添加联系人</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="row g-2">
+                    <div class="col-md-6"><label class="form-label small">姓名 *</label><input type="text" name="name" class="form-control form-control-sm" required></div>
+                    <div class="col-md-6"><label class="form-label small">职务</label><input type="text" name="title" class="form-control form-control-sm"></div>
+                    <div class="col-md-4"><label class="form-label small">部门</label><input type="text" name="department" class="form-control form-control-sm"></div>
+                    <div class="col-md-4"><label class="form-label small">手机</label><input type="text" name="mobile" class="form-control form-control-sm"></div>
+                    <div class="col-md-4"><label class="form-label small">电话</label><input type="text" name="phone" class="form-control form-control-sm"></div>
+                    <div class="col-md-6"><label class="form-label small">邮箱</label><input type="email" name="email" class="form-control form-control-sm"></div>
+                    <div class="col-md-4"><label class="form-label small">微信</label><input type="text" name="wechat" class="form-control form-control-sm"></div>
+                    <div class="col-md-2"><label class="form-label small">&nbsp;</label><div class="form-check mt-2"><input class="form-check-input" type="checkbox" name="is_primary" value="1" id="cPrimary"><label class="form-check-label small" for="cPrimary">主要联系人</label></div></div>
+                </div>
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-primary btn-sm">保存</button></div>
+        </form>
+    </div>
+</div>
+
+<!-- 证书 -->
+<div class="card mt-3">
+    <div class="card-header fw-bold">资质证书</div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>类型</th><th>编号</th><th>颁发机构</th><th>颁发日期</th><th>到期日期</th><th>状态</th></tr></thead>
+            <tbody>
+            {% for c in certs %}
+            <tr>
+                <td>{{ c.cert_type }}</td><td>{{ c.cert_number or '-' }}</td><td>{{ c.issuing_agency or '-' }}</td>
+                <td>{{ c.issue_date or '-' }}</td><td>{{ c.expiry_date or '-' }}</td>
+                <td>{% if c.is_valid %}<span class="badge bg-success">有效</span>{% else %}<span class="badge bg-danger">已过期</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 可供应包材 -->
+<div class="card mt-3">
+    <div class="card-header fw-bold">可供应包材</div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>包材编码</th><th>名称</th><th>分类</th><th>规格</th><th>最新单价</th><th>样品确认</th><th>首选</th></tr></thead>
+            <tbody>
+            {% for m in materials %}
+            <tr>
+                <td><a href="/materials/{{ m.material_id }}">{{ m.mat_code }}</a></td>
+                <td>{{ m.mat_name }}</td><td><small class="text-muted">{{ m.cat_path or '-' }}</small></td>
+                <td>{{ m.spec_capacity or '-' }}</td>
+                <td class="text-end">{{ m.latest_unit_price or '-' }}</td>
+                <td>{% if m.sample_approved %}<span class="badge bg-success">已确认</span>{% else %}<span class="badge bg-warning">待确认</span>{% endif %}</td>
+                <td>{% if m.is_preferred %}⭐{% else %}-{% endif %}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 评估记录 -->
+<div class="card mt-3">
+    <div class="card-header d-flex justify-content-between align-items-center fw-bold">
+        供应商评估
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#evalModal"><i class="bi bi-plus-lg"></i> 新增评估</button>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>评估期</th><th>日期</th><th>质量</th><th>交期</th><th>价格</th><th>服务</th><th>配合度</th><th>综合</th><th>评估人</th></tr></thead>
+            <tbody>
+            {% for e in evals %}
+            <tr>
+                <td>{{ e.eval_period }}</td><td>{{ e.eval_date }}</td>
+                <td>{{ e.score_quality or '-' }}</td><td>{{ e.score_delivery or '-' }}</td>
+                <td>{{ e.score_price or '-' }}</td><td>{{ e.score_service or '-' }}</td>
+                <td>{{ e.score_flexibility or '-' }}</td>
+                <td class="fw-bold">{{ e.total_score or '-' }}</td>
+                <td>{{ e.evaluator or '-' }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 新增评估弹窗 -->
+<div class="modal fade" id="evalModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <form class="modal-content" method="post" action="/suppliers/{{ s.id }}/evaluate">
+            <div class="modal-header"><h6 class="modal-title">新增评估</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="row g-2">
+                    <div class="col-md-3"><label class="form-label small">评估期 *</label><input type="text" name="eval_period" class="form-control form-control-sm" placeholder="2026-Q2" required></div>
+                    <div class="col-md-3"><label class="form-label small">评估日期 *</label><input type="date" name="eval_date" class="form-control form-control-sm" value="{{ now }}" required></div>
+                    <div class="col-md-3"><label class="form-label small">评估人</label><input type="text" name="evaluator" class="form-control form-control-sm"></div>
+                </div>
+                <div class="row g-2 mt-2">
+                    <div class="col-md-2"><label class="form-label small">质量 (0-5)</label><input type="number" name="score_quality" class="form-control form-control-sm" min="0" max="5" step="0.5"></div>
+                    <div class="col-md-2"><label class="form-label small">交期 (0-5)</label><input type="number" name="score_delivery" class="form-control form-control-sm" min="0" max="5" step="0.5"></div>
+                    <div class="col-md-2"><label class="form-label small">价格 (0-5)</label><input type="number" name="score_price" class="form-control form-control-sm" min="0" max="5" step="0.5"></div>
+                    <div class="col-md-2"><label class="form-label small">服务 (0-5)</label><input type="number" name="score_service" class="form-control form-control-sm" min="0" max="5" step="0.5"></div>
+                    <div class="col-md-2"><label class="form-label small">配合度 (0-5)</label><input type="number" name="score_flexibility" class="form-control form-control-sm" min="0" max="5" step="0.5"></div>
+                </div>
+                <div class="mt-2"><label class="form-label small">评估总结</label><textarea name="evaluation_summary" class="form-control form-control-sm" rows="2"></textarea></div>
+                <div class="mt-2"><label class="form-label small">改善建议</label><textarea name="improvement_plan" class="form-control form-control-sm" rows="2"></textarea></div>
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-primary btn-sm">保存</button></div>
+        </form>
+    </div>
+</div>
+
+<!-- 采购记录 -->
+<div class="card mt-3">
+    <div class="card-header fw-bold">最近采购订单</div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>订单号</th><th>下单日</th><th>预计到货</th><th>状态</th><th>总金额</th></tr></thead>
+            <tbody>
+            {% for o in orders %}
+            <tr>
+                <td><a href="/purchases/{{ o.id }}">{{ o.order_no }}</a></td>
+                <td>{{ o.order_date }}</td><td>{{ o.expected_delivery or '-' }}</td>
+                <td><span class="badge bg-{{ status_badge(o.status) }}">{{ o.status }}</span></td>
+                <td class="text-end">{% if o.total_amount %}¥{{ "%.2f"|format(o.total_amount) }}{% else %}-{% endif %}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

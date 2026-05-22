@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}新增质检{% endblock %}
+{% block content %}
+
+<h5><i class="bi bi-clipboard-check"></i> 新增质检记录</h5>
+
+<form method="post" class="row g-3 mt-1">
+    <div class="col-12"><h6 class="border-bottom pb-1">基本信息</h6></div>
+    <div class="col-md-3">
+        <label class="form-label small">质检单号 *</label>
+        <input type="text" name="inspection_no" class="form-control form-control-sm" required>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">采购订单 *</label>
+        <select name="order_id" class="form-select form-select-sm" required onchange="loadOrderItems(this.value)">
+            <option value="">-- 选择订单 --</option>
+            {% for o in orders %}
+            <option value="{{ o.id }}">{{ o.order_no }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">订单明细（可选）</label>
+        <select name="order_item_id" id="orderItemSelect" class="form-select form-select-sm">
+            <option value="">-- 整单检验 --</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small">检验日期 *</label>
+        <input type="date" name="inspection_date" class="form-control form-control-sm" value="{{ now }}" required>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small">检验人</label>
+        <input type="text" name="inspector" class="form-control form-control-sm">
+    </div>
+
+    <div class="col-12"><h6 class="border-bottom pb-1 mt-2">抽样信息</h6></div>
+    <div class="col-md-2">
+        <label class="form-label small">批次总数量</label>
+        <input type="number" name="lot_qty" class="form-control form-control-sm">
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small">抽样数量</label>
+        <input type="number" name="sample_qty" class="form-control form-control-sm">
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small">不良数量</label>
+        <input type="number" name="defect_qty" class="form-control form-control-sm" value="0">
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small">AQL 标准</label>
+        <select name="aql_level" class="form-select form-select-sm">
+            <option value="">--</option>
+            <option value="0.65">0.65</option>
+            <option value="1.0">1.0</option>
+            <option value="1.5">1.5</option>
+            <option value="2.5">2.5</option>
+            <option value="4.0">4.0</option>
+        </select>
+    </div>
+
+    <div class="col-12"><h6 class="border-bottom pb-1 mt-2">AQL 缺陷率</h6></div>
+    <div class="col-md-3">
+        <label class="form-label small">致命缺陷率</label>
+        <input type="number" name="aql_critical" class="form-control form-control-sm" step="0.0001" min="0" max="1">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">严重缺陷率</label>
+        <input type="number" name="aql_major" class="form-control form-control-sm" step="0.0001" min="0" max="1">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">轻微缺陷率</label>
+        <input type="number" name="aql_minor" class="form-control form-control-sm" step="0.0001" min="0" max="1">
+    </div>
+
+    <div class="col-12"><h6 class="border-bottom pb-1 mt-2">检验项目</h6></div>
+    <div class="col-md-12">
+        <div class="row g-2">
+            {% set checks = [
+                ('check_dimensions','尺寸检验'), ('check_appearance','外观检验'),
+                ('check_function','功能检验'), ('check_printing','印刷检验'),
+                ('check_color','色差检验'), ('check_material','材质检验'),
+                ('check_capacity','容量/克重'), ('check_compatibility','兼容性测试')
+            ] %}
+            {% for cid, clabel in checks %}
+            <div class="col-md-3"><div class="form-check"><input class="form-check-input" type="checkbox" name="{{ cid }}" value="1" id="{{ cid }}" checked> <label class="form-check-label small" for="{{ cid }}">{{ clabel }}</label></div></div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="col-12"><h6 class="border-bottom pb-1 mt-2">结论</h6></div>
+    <div class="col-md-12">
+        <label class="form-label small">检验详细记录</label>
+        <textarea name="inspection_detail" class="form-control form-control-sm" rows="3"></textarea>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">检验结论 *</label>
+        <select name="result" class="form-select form-select-sm" required>
+            <option value="">--</option>
+            <option value="PASS">合格</option>
+            <option value="CONDITIONAL_PASS">让步接收</option>
+            <option value="FAIL">不合格</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label small">处理方式</label>
+        <select name="handle_method" class="form-select form-select-sm">
+            <option value="">--</option>
+            <option value="退货">退货</option>
+            <option value="挑选使用">挑选使用</option>
+            <option value="让步接收">让步接收</option>
+            <option value="报废">报废</option>
+        </select>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label small">备注</label>
+        <textarea name="remark" class="form-control form-control-sm" rows="2"></textarea>
+    </div>
+
+    <div class="col-12 mt-3">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="/qualities" class="btn btn-outline-secondary ms-2">取消</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function loadOrderItems(orderId) {
+    // 简化处理：直接重置下拉框，质检人可手动选择全单检验
+    var sel = document.getElementById('orderItemSelect');
+    sel.innerHTML = '<option value="">-- 整单检验 --</option>';
+    if (!orderId) return;
+    // 动态加载订单明细需要 API，此处先提供整单检验选项
+}
+</script>
+{% endblock %}

@@ -1,0 +1,67 @@
+version: "3.8"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: skincare-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: skincare2025!
+      MYSQL_DATABASE: skincare_inventory
+      MYSQL_USER: skincare
+      MYSQL_PASSWORD: skincare2025!
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+      - ./views.sql:/docker-entrypoint-initdb.d/03-views.sql
+      - ./exports.sql:/docker-entrypoint-initdb.d/04-exports.sql
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-time-zone=+08:00
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: skincare-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: skincare
+      PMA_PASSWORD: skincare2025!
+      UPLOAD_LIMIT: 100M
+    ports:
+      - "8080:80"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  web:
+    build: .
+    container_name: skincare-web
+    restart: unless-stopped
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: skincare
+      DB_PASSWORD: skincare2025!
+      DB_NAME: skincare_inventory
+      FLASK_DEBUG: 0
+      TZ: Asia/Shanghai
+    ports:
+      - "5000:5000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
