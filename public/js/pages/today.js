@@ -389,8 +389,7 @@ const TodayPage = {
         showToast('错误：' + err.message);
       }
     });
-  }
-};
+  },
 
   showProjectDetail(data, onUpdated) {
     const { project, steps } = data;
@@ -483,7 +482,8 @@ const TodayPage = {
         div.querySelector('.step-title').addEventListener('blur', async function() { try { await API.put(`/api/entries/${res.id}`, { title: this.value }); } catch {} });
       } catch (err) { showToast('错误：' + err.message); }
     });
-  },
+  }
+};
 
 function priorityLabel(p) {
   const map = { urgent: '紧急', high: '高', medium: '中', low: '低' };
