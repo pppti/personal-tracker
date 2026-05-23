@@ -63,7 +63,8 @@ const WorkflowsPage = {
                 ${steps.map((s, i) => `<div>${i+1}. ${escapeHtml(s)}</div>`).join('')}
               </div>
             ` : ''}
-            <div style="margin-top:6px;">
+            <div style="margin-top:6px;display:flex;gap:4px;">
+              <button class="btn btn-sm btn-outline edit-wf-btn" data-id="${w.id}" style="font-size:0.7rem;">编辑</button>
               <button class="btn btn-sm btn-outline del-wf-btn" data-id="${w.id}" style="font-size:0.7rem;">删除</button>
             </div>
           </div>
@@ -85,6 +86,17 @@ const WorkflowsPage = {
           btn.textContent = '启动';
           btn.disabled = false;
         }
+      });
+    });
+
+    // Edit workflow
+    $$('.edit-wf-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        try {
+          const wf = await API.get(`/api/workflows/${btn.dataset.id}`);
+          this.showEditModal(wf, container);
+        } catch (err) { showToast('错误：' + err.message); }
       });
     });
 
@@ -124,6 +136,48 @@ const WorkflowsPage = {
       } catch (err) {
         el.innerHTML = `<div class="card" style="color:var(--red);">错误：${escapeHtml(err.message)}</div>`;
       }
+    });
+  },
+
+  showEditModal(wf, container) {
+    const steps = wf.steps || JSON.parse(wf.steps_text || '[]');
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <h3>编辑流程模板</h3>
+        <form id="editWfForm">
+          <div class="form-group"><label>名称</label><input type="text" id="editWfName" value="${escapeHtml(wf.name)}"></div>
+          <div class="form-group"><label>描述</label><input type="text" id="editWfDesc" value="${escapeHtml(wf.description||'')}"></div>
+          <div class="form-group"><label>分类</label><input type="text" id="editWfCategory" value="${escapeHtml(wf.category||'')}"></div>
+          <div class="form-group"><label>步骤（每行一个）</label><textarea id="editWfSteps" rows="8">${steps.map(s => escapeHtml(s)).join('\n')}</textarea></div>
+          <div class="btn-group">
+            <button type="submit" class="btn btn-primary">保存</button>
+            <button type="button" class="btn btn-outline" id="cancelEditWfBtn">取消</button>
+          </div>
+        </form>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    const close = () => modal.remove();
+    modal.querySelector('.modal-backdrop').addEventListener('click', close);
+    $('#cancelEditWfBtn').addEventListener('click', close);
+    $('#editWfForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newSteps = $('#editWfSteps').value.split('\n').map(s => s.trim()).filter(s => s);
+      if (newSteps.length === 0) { showToast('请至少填写一个步骤'); return; }
+      try {
+        await API.put(`/api/workflows/${wf.id}`, {
+          name: $('#editWfName').value,
+          description: $('#editWfDesc').value,
+          category: $('#editWfCategory').value,
+          steps: newSteps
+        });
+        close();
+        showToast('模板已更新');
+        this.render(container);
+      } catch (err) { showToast('错误：' + err.message); }
     });
   },
 
