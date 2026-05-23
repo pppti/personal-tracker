@@ -4,7 +4,8 @@ const db = require('../db');
 const { sendNotification } = require('../notify');
 
 router.get('/', (_req, res) => {
-  const rows = db.prepare('SELECT * FROM entries ORDER BY created_at DESC').all();
+  // Only show top-level entries (no sub-steps cluttering the list)
+  const rows = db.prepare('SELECT * FROM entries WHERE parent_id IS NULL ORDER BY created_at DESC').all();
   res.json(rows);
 });
 
@@ -69,11 +70,36 @@ router.post('/', (req, res) => {
   res.status(201).json(row);
 });
 
+// Helper: recalculate parent progress from sub-steps
+function recalcParent(parentId) {
+  const subs = db.prepare('SELECT status FROM entries WHERE parent_id = ?').all(parentId);
+  if (subs.length === 0) return;
+  const done = subs.filter(s => s.status === 'done').length;
+  const pct = Math.round(done / subs.length * 100);
+  const newStatus = pct >= 100 ? 'done' : 'in_progress';
+  const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  db.prepare('UPDATE entries SET progress = ?, status = ?, updated_at = ? WHERE id = ?')
+    .run(pct, newStatus, now, parentId);
+}
+
 router.put('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM entries WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
-  const { title, content, status, category, tags, deadline, priority, progress } = req.body;
+  let { title, content, status, category, tags, deadline, priority, progress } = req.body;
   const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+  // Auto: mark done → progress 100
+  if (status === 'done' && status !== existing.status) {
+    progress = 100;
+  }
+  // Auto: if simple task (no sub-steps) marked done, progress must be 100
+  if (status === 'done' && !existing.parent_id) {
+    const hasSubs = db.prepare('SELECT COUNT(*) as cnt FROM entries WHERE parent_id = ?').get(req.params.id);
+    if (!hasSubs || hasSubs.cnt === 0) {
+      progress = 100;
+    }
+  }
+
   db.prepare(
     `UPDATE entries SET title=?, content=?, status=?, category=?, tags=?, deadline=?, priority=?, progress=?, updated_at=?
      WHERE id=?`
@@ -90,29 +116,31 @@ router.put('/:id', (req, res) => {
     req.params.id
   );
 
-  // Cascade: if parent marked done, complete all sub-entries too
+  // Cascade: parent marked done → complete all sub-entries
   if (status === 'done' && status !== existing.status) {
     db.prepare('UPDATE entries SET status = ?, progress = 100, updated_at = ? WHERE parent_id = ? AND status != ?')
       .run('done', now, req.params.id, 'done');
   }
 
-  // Cascade: if sub-entry marked done, check if all subs done → complete parent
-  if (status === 'done' && existing.parent_id) {
-    const remaining = db.prepare(
-      'SELECT COUNT(*) as cnt FROM entries WHERE parent_id = ? AND status != ? AND id != ?'
-    ).get(existing.parent_id, 'done', req.params.id);
-    if (remaining.cnt === 0) {
-      db.prepare('UPDATE entries SET status = ?, progress = 100, updated_at = ? WHERE id = ?')
-        .run('done', now, existing.parent_id);
+  // Auto-calc: if sub-entry changed, recalculate parent progress
+  if (existing.parent_id) {
+    recalcParent(existing.parent_id);
+  }
+
+  // If this entry has sub-entries, recalculate THIS progress from subs
+  if (!existing.parent_id && (status !== undefined || progress !== undefined)) {
+    const hasSubs = db.prepare('SELECT COUNT(*) as cnt FROM entries WHERE parent_id = ?').get(req.params.id);
+    if (hasSubs && hasSubs.cnt > 0) {
+      recalcParent(req.params.id);
     }
   }
 
   // Log progress change
-  if (progress !== undefined && progress !== existing.progress) {
-    const oldProgress = existing.progress || 0;
-    const note = status === 'done' ? '已完成' : `进度 ${oldProgress}% → ${progress}%`;
+  const finalProgress = progress !== undefined ? progress : existing.progress;
+  if (finalProgress !== (existing.progress || 0)) {
+    const note = status === 'done' ? '已完成' : `进度更新至 ${finalProgress}%`;
     db.prepare('INSERT INTO progress_log (entry_id, progress, note) VALUES (?,?,?)')
-      .run(req.params.id, progress, note);
+      .run(req.params.id, finalProgress, note);
   }
 
   const row = db.prepare('SELECT * FROM entries WHERE id = ?').get(req.params.id);
