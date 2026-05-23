@@ -192,8 +192,8 @@ const TodayPage = {
         btn.disabled = true;
         try {
           const data = await API.post(`/api/workflows/${btn.dataset.id}/start`, {});
-          showToast(`流程已启动：${data.subEntries.length} 个子任务已添加到今日待办`);
-          this.render(container);
+          const projData = await API.get(`/api/entries/project/${data.mainEntry.id}`);
+          this.showProjectDetail(projData, () => this.render(container));
         } catch (err) {
           showToast('错误：' + err.message);
           btn.textContent = '启动';

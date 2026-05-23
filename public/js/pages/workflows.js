@@ -72,15 +72,17 @@ const WorkflowsPage = {
       }).join('')}
     `;
 
-    // Start workflow
+    // Start workflow → show project overview immediately
     $$('.start-wf-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         btn.textContent = '...';
         btn.disabled = true;
         try {
           const data = await API.post(`/api/workflows/${btn.dataset.id}/start`, {});
-          showToast(`流程已启动：${data.mainEntry.title}（${data.subEntries.length} 个子任务）`);
-          this.render(container);
+          showToast(`项目已创建：${data.mainEntry.title}`);
+          // Show project overview
+          const projData = await API.get(`/api/entries/project/${data.mainEntry.id}`);
+          this.showProjectOverview(projData, container);
         } catch (err) {
           showToast('错误：' + err.message);
           btn.textContent = '启动';
@@ -178,6 +180,60 @@ const WorkflowsPage = {
         showToast('模板已更新');
         this.render(container);
       } catch (err) { showToast('错误：' + err.message); }
+    });
+  },
+
+  showProjectOverview(data, container) {
+    const { project, steps } = data;
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    const doneCount = steps.filter(s => s.status === 'done').length;
+    const totalPct = steps.length > 0 ? Math.round(doneCount / steps.length * 100) : 0;
+
+    modal.innerHTML = `
+      <div class="modal-backdrop"></div>
+      <div class="modal-content" style="max-width:560px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <h3>项目总览</h3>
+          <span class="badge badge-${project.status}">${statusLabel(project.status)}</span>
+        </div>
+        <div style="font-weight:600;font-size:1rem;margin-bottom:4px;">${escapeHtml(project.title)}</div>
+        ${project.content ? `<div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:8px;">${escapeHtml(project.content)}</div>` : ''}
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:4px;">
+            <span>项目进度</span><span>${doneCount}/${steps.length}步 (${totalPct}%)</span>
+          </div>
+          <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
+            <div style="height:100%;width:${totalPct}%;background:var(--accent);border-radius:4px;transition:width 0.3s;"></div>
+          </div>
+        </div>
+
+        <div style="max-height:40vh;overflow-y:auto;">
+          ${steps.map((s, i) => `
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
+              <span style="font-size:1.1rem;">${s.status==='done'?'✅':'⬜'}</span>
+              <span style="flex:1;font-size:0.85rem;text-decoration:${s.status==='done'?'line-through':'none'};color:${s.status==='done'?'var(--text-dim)':'var(--text)'};">${escapeHtml(s.title)}</span>
+            </div>
+          `).join('')}
+        </div>
+
+        <div style="margin-top:12px;font-size:0.8rem;color:var(--text-dim);text-align:center;">
+          去「今日待办」点击此项目卡片可自由增删改步骤
+        </div>
+        <div class="btn-group" style="margin-top:10px;">
+          <button class="btn btn-primary btn-sm" id="gotoTodayBtn">去今日待办</button>
+          <button class="btn btn-outline btn-sm" id="closeOverviewBtn">关闭</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const close = () => modal.remove();
+    modal.querySelector('.modal-backdrop').addEventListener('click', close);
+    $('#closeOverviewBtn').addEventListener('click', close);
+    $('#gotoTodayBtn').addEventListener('click', () => {
+      close();
+      location.hash = '#today';
     });
   },
 
