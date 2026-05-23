@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const db = require('./db');
 const { sendNotification } = require('./notify');
+const { sendPushToAll } = require('./routes/push');
 
 function startScheduler() {
   cron.schedule('* * * * *', () => {
@@ -10,11 +11,13 @@ function startScheduler() {
     ).all(now);
 
     for (const r of due) {
-      sendNotification('Reminder', r.message)
-        .then(() => {
-          db.prepare('UPDATE reminders SET notified = 1 WHERE id = ?').run(r.id);
-        })
-        .catch(() => {});
+      // Send via ntfy + Web Push in parallel
+      Promise.allSettled([
+        sendNotification('提醒', r.message),
+        sendPushToAll('提醒', r.message)
+      ]).finally(() => {
+        db.prepare('UPDATE reminders SET notified = 1 WHERE id = ?').run(r.id);
+      });
     }
   });
 

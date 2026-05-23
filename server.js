@@ -21,6 +21,8 @@ setupRoutes(app);
 
 // DB-dependent routes (loaded after health endpoint is ready)
 const { authMiddleware } = require('./auth');
+const { router: pushRouter } = require('./routes/push');
+app.use('/api/push', authMiddleware, pushRouter);
 app.use('/api/entries', authMiddleware, require('./routes/entries'));
 app.use('/api/reminders', authMiddleware, require('./routes/reminders'));
 app.use('/api/summary', authMiddleware, require('./routes/summary'));

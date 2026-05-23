@@ -22,6 +22,7 @@ const SettingsPage = {
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-outline btn-sm" id="testPushBtn">测试推送</button>
           <button class="btn btn-outline btn-sm" id="enableBrowserNotifyBtn">开启浏览器通知</button>
+          <button class="btn btn-outline btn-sm" id="webPushBtn">开启 Web Push</button>
         </div>
         <p id="pushTestResult" style="margin-top:8px;font-size:0.8rem;display:none;"></p>
       </div>
@@ -112,6 +113,27 @@ const SettingsPage = {
         new Notification('个人工作追踪', { body: '通知功能已就绪！即使 ntfy 连不上，浏览器也能弹出提醒。' });
       } else {
         showToast('通知权限被拒绝，请在浏览器设置中手动开启');
+      }
+    });
+
+    $('#webPushBtn').addEventListener('click', async () => {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        showToast('你的浏览器不支持 Web Push');
+        return;
+      }
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const vapidData = await API.get('/api/push/vapid-public');
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: vapidData.publicKey
+        });
+        await API.post('/api/push/subscribe', { subscription: sub });
+        $('#webPushBtn').textContent = 'Web Push 已开启';
+        $('#webPushBtn').style.background = 'var(--green)';
+        showToast('Web Push 已开启！关闭 App 也能收到推送');
+      } catch (err) {
+        showToast('Web Push 开启失败：' + err.message);
       }
     });
 

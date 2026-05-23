@@ -1,4 +1,4 @@
-const CACHE = 'tracker-v3';
+const CACHE = 'tracker-v4';
 const ASSETS = [
   '/',
   '/css/style.css',
@@ -49,6 +49,34 @@ self.addEventListener('fetch', (e) => {
         }
         return res;
       });
+    })
+  );
+});
+
+self.addEventListener('push', (e) => {
+  if (!e.data) return;
+  const data = e.data.json();
+  e.waitUntil(
+    self.registration.showNotification(data.title || '提醒', {
+      body: data.body || '',
+      icon: data.icon || '/icon-192.png',
+      badge: '/icon-192.png',
+      vibrate: [200, 100, 200],
+      tag: 'reminder',
+      requireInteraction: true
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil(
+    clients.matchAll({ type: 'window' }).then(clients => {
+      if (clients.length > 0) {
+        clients[0].focus();
+      } else {
+        clients.openWindow('/');
+      }
     })
   );
 });
