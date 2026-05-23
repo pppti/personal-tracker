@@ -37,7 +37,7 @@ router.get('/project/:id', (req, res) => {
   if (!project) return res.status(404).json({ error: 'Not found' });
   const steps = db.prepare('SELECT * FROM entries WHERE parent_id = ? ORDER BY id ASC').all(req.params.id);
   for (const s of steps) {
-    const logs = db.prepare('SELECT * FROM progress_log WHERE entry_id = ? ORDER BY created_at DESC LIMIT 10').all(s.id);
+    const logs = db.prepare('SELECT * FROM progress_log WHERE entry_id = ? ORDER BY created_at DESC LIMIT 20').all(s.id);
     s.logs = logs;
   }
   res.json({ project, steps });

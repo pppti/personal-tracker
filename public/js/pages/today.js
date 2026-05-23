@@ -414,12 +414,21 @@ const TodayPage = {
           </div>
         </div>
 
-        <div id="projectSteps" style="max-height:40vh;overflow-y:auto;">
+        <div id="projectSteps" style="max-height:45vh;overflow-y:auto;">
           ${steps.map((s, i) => `
-            <div class="project-step" data-id="${s.id}" style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
-              <input type="checkbox" class="step-check" ${s.status==='done'?'checked':''} style="width:18px;height:18px;flex-shrink:0;">
-              <input type="text" class="step-title" value="${escapeHtml(s.title)}" style="flex:1;background:transparent;border:none;color:var(--text);font-size:0.85rem;padding:4px;text-decoration:${s.status==='done'?'line-through':'none'};">
-              <button class="btn btn-sm btn-outline del-step-btn" data-id="${s.id}" style="font-size:0.65rem;padding:2px 6px;flex-shrink:0;">✕</button>
+            <div class="project-step" data-id="${s.id}" style="padding:6px 0;border-bottom:1px solid var(--border);">
+              <div class="step-header" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" class="step-check" ${s.status==='done'?'checked':''} style="width:18px;height:18px;flex-shrink:0;">
+                <span class="step-title-text" style="flex:1;font-size:0.85rem;text-decoration:${s.status==='done'?'line-through':'none'};color:${s.status==='done'?'var(--text-dim)':'var(--text)'};">${escapeHtml(s.title)}</span>
+                <span class="step-expand" style="font-size:0.65rem;color:var(--text-dim);flex-shrink:0;">展开 ▼</span>
+                <button class="btn btn-sm btn-outline del-step-btn" data-id="${s.id}" style="font-size:0.6rem;padding:1px 5px;flex-shrink:0;">✕</button>
+              </div>
+              <div class="step-detail" style="display:none;margin-top:8px;padding-left:26px;">
+                <textarea class="step-content" rows="3" placeholder="填写具体内容、进展、遇到的问题..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:0.8rem;font-family:inherit;resize:vertical;">${escapeHtml(s.content||'')}</textarea>
+                <div style="margin-top:4px;font-size:0.7rem;color:var(--text-dim);">
+                  ${s.logs && s.logs.length > 0 ? s.logs.slice(0,3).map(l => `<div>${escapeHtml(l.note)} (${formatDate(l.created_at)})</div>`).join('') : ''}
+                </div>
+              </div>
             </div>
           `).join('')}
         </div>
@@ -442,25 +451,45 @@ const TodayPage = {
     // Toggle step done
     $$('.step-check', modal).forEach(cb => {
       cb.addEventListener('change', async () => {
-        const id = parseInt(cb.closest('.project-step').dataset.id);
+        const stepDiv = cb.closest('.project-step');
+        const id = parseInt(stepDiv.dataset.id);
         const status = cb.checked ? 'done' : 'pending';
         try { await API.put(`/api/entries/${id}`, { status }); }
         catch { cb.checked = !cb.checked; }
       });
     });
 
-    // Edit step title (save on blur)
-    $$('.step-title', modal).forEach(inp => {
-      inp.addEventListener('blur', async () => {
-        const id = parseInt(inp.closest('.project-step').dataset.id);
-        try { await API.put(`/api/entries/${id}`, { title: inp.value }); } catch {}
+    // Expand/collapse step detail
+    $$('.step-header', modal).forEach(header => {
+      header.addEventListener('click', (e) => {
+        if (e.target.closest('.del-step-btn') || e.target.closest('.step-check')) return;
+        const detail = header.parentElement.querySelector('.step-detail');
+        const expand = header.querySelector('.step-expand');
+        if (detail.style.display === 'none') {
+          detail.style.display = 'block';
+          expand.textContent = '收起 ▲';
+        } else {
+          detail.style.display = 'none';
+          expand.textContent = '展开 ▼';
+        }
+      });
+    });
+
+    // Auto-save step content on blur
+    $$('.step-content', modal).forEach(ta => {
+      ta.addEventListener('blur', async () => {
+        const id = parseInt(ta.closest('.project-step').dataset.id);
+        try { await API.put(`/api/entries/${id}`, { content: ta.value }); } catch {}
       });
     });
 
     // Delete step
     $$('.del-step-btn', modal).forEach(btn => {
-      btn.addEventListener('click', async () => {
-        try { await API.del(`/api/entries/${btn.dataset.id}`); btn.closest('.project-step').remove(); } catch {}
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const stepDiv = btn.closest('.project-step');
+        try { await API.del(`/api/entries/${btn.dataset.id}`); stepDiv.remove(); }
+        catch {}
       });
     });
 
@@ -469,17 +498,19 @@ const TodayPage = {
       const title = $('#newStepInput').value.trim();
       if (!title) return;
       try {
-        const res = await API.post('/api/entries', { title, status: 'pending', parent_id: project.id, category: project.category });
+        const res = await API.post('/api/entries', { title, status: 'pending', parent_id: project.id, category: project.category, progress: 0 });
         const div = document.createElement('div');
-        div.className = 'project-step';
-        div.dataset.id = res.id;
-        div.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);';
-        div.innerHTML = `<input type="checkbox" class="step-check" style="width:18px;height:18px;"><input type="text" class="step-title" value="${escapeHtml(title)}" style="flex:1;background:transparent;border:none;color:var(--text);font-size:0.85rem;padding:4px;"><button class="btn btn-sm btn-outline del-step-btn" data-id="${res.id}" style="font-size:0.65rem;padding:2px 6px;">✕</button>`;
-        $('#projectSteps').appendChild(div);
-        $('#newStepInput').value = '';
-        div.querySelector('.del-step-btn').addEventListener('click', async function() { try { await API.del(`/api/entries/${this.dataset.id}`); this.closest('.project-step').remove(); } catch {} });
-        div.querySelector('.step-check').addEventListener('change', async function() { try { await API.put(`/api/entries/${res.id}`, { status: this.checked ? 'done' : 'pending' }); } catch { this.checked = !this.checked; } });
-        div.querySelector('.step-title').addEventListener('blur', async function() { try { await API.put(`/api/entries/${res.id}`, { title: this.value }); } catch {} });
+        div.className = 'project-step'; div.dataset.id = res.id;
+        div.style.cssText = 'padding:6px 0;border-bottom:1px solid var(--border);';
+        div.innerHTML = `<div class="step-header" style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" class="step-check" style="width:18px;height:18px;flex-shrink:0;"><span class="step-title-text" style="flex:1;font-size:0.85rem;">${escapeHtml(title)}</span><span class="step-expand" style="font-size:0.65rem;color:var(--text-dim);flex-shrink:0;">展开 ▼</span><button class="btn btn-sm btn-outline del-step-btn" data-id="${res.id}" style="font-size:0.6rem;padding:1px 5px;flex-shrink:0;">✕</button></div><div class="step-detail" style="display:none;margin-top:8px;padding-left:26px;"><textarea class="step-content" rows="3" placeholder="填写具体内容、进展..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:0.8rem;font-family:inherit;resize:vertical;"></textarea></div>`;
+        $('#projectSteps').appendChild(div); $('#newStepInput').value = '';
+        const bindStep = (d) => {
+          d.querySelector('.del-step-btn').addEventListener('click', function(e){e.stopPropagation();try{API.del(`/api/entries/${this.dataset.id}`);this.closest('.project-step').remove();}catch{}});
+          d.querySelector('.step-check').addEventListener('change', function(){try{API.put(`/api/entries/${res.id}`,{status:this.checked?'done':'pending'});}catch{this.checked=!this.checked;}});
+          d.querySelector('.step-header').addEventListener('click',function(e){if(e.target.closest('.del-step-btn')||e.target.closest('.step-check'))return;const dt=this.parentElement.querySelector('.step-detail');const ex=this.querySelector('.step-expand');if(dt.style.display==='none'){dt.style.display='block';ex.textContent='收起 ▲';}else{dt.style.display='none';ex.textContent='展开 ▼';}});
+          d.querySelector('.step-content')?.addEventListener('blur',function(){try{API.put(`/api/entries/${res.id}`,{content:this.value});}catch{}});
+        };
+        bindStep(div);
       } catch (err) { showToast('错误：' + err.message); }
     });
   }
