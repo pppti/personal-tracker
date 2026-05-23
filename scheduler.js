@@ -7,7 +7,7 @@ function startScheduler() {
   cron.schedule('* * * * *', () => {
     const now = new Date().toISOString().replace('T', ' ').slice(0, 16);
     const due = db.prepare(
-      'SELECT id, message, remind_at FROM reminders WHERE notified = 0 AND remind_at <= ?'
+      "SELECT id, message, remind_at FROM reminders WHERE notified = 0 AND REPLACE(remind_at,'T',' ') <= ?"
     ).all(now);
 
     for (const r of due) {
