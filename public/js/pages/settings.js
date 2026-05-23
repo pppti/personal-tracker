@@ -44,6 +44,16 @@ const SettingsPage = {
         <span id="dsStatus" style="margin-left:10px;font-size:0.82rem;color:var(--green);display:none;">已保存</span>
       </div>
 
+      <h2 style="font-size:1rem;margin:20px 0 14px;">每日待办推送</h2>
+      <div class="card">
+        <p style="font-size:0.82rem;color:var(--text-dim);margin-bottom:10px;">
+          每天固定时间推送今日待办汇总。勾选你想要的时间：
+        </p>
+        <div id="dailyTimesCheckboxes" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+        <button class="btn btn-primary btn-sm" id="saveDailyBtn" style="margin-top:10px;">保存</button>
+        <span id="dailyStatus" style="margin-left:8px;font-size:0.82rem;color:var(--green);display:none;">已保存</span>
+      </div>
+
       <h2 style="font-size:1rem;margin:20px 0 14px;">修改密码</h2>
       <div class="card">
         <form id="changePwForm">
@@ -134,6 +144,31 @@ const SettingsPage = {
         showToast('Web Push 已开启！关闭 App 也能收到推送');
       } catch (err) {
         showToast('Web Push 开启失败：' + err.message);
+      }
+    });
+
+    // Daily push times
+    const allTimes = ['06:00','08:00','09:00','10:00','12:00','14:00','16:00','18:00','20:00','22:00'];
+    let currentTimes = [];
+    try { currentTimes = JSON.parse(settings.daily_push_times || '[]'); } catch { currentTimes = []; }
+    const boxDiv = $('#dailyTimesCheckboxes');
+    allTimes.forEach(t => {
+      const label = document.createElement('label');
+      label.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:0.85rem;cursor:pointer;padding:4px 8px;border:1px solid var(--border);border-radius:6px;';
+      label.innerHTML = `<input type="checkbox" value="${t}" ${currentTimes.includes(t)?'checked':''}> ${t}`;
+      boxDiv.appendChild(label);
+    });
+
+    $('#saveDailyBtn').addEventListener('click', async () => {
+      const checked = $$('#dailyTimesCheckboxes input:checked').map(cb => cb.value);
+      try {
+        await API.put('/api/settings', { daily_push_times: JSON.stringify(checked) });
+        const s = $('#dailyStatus');
+        s.style.display = 'inline';
+        setTimeout(() => { s.style.display = 'none'; }, 2000);
+        showToast('每日推送时间已保存');
+      } catch (err) {
+        showToast('错误：' + err.message);
       }
     });
 

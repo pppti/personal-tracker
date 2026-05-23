@@ -16,7 +16,7 @@ router.get('/', (_req, res) => {
 });
 
 router.put('/', (req, res) => {
-  const allowed = ['ntfy_server', 'ntfy_topic', 'deepseek_key', 'deepseek_model'];
+  const allowed = ['ntfy_server', 'ntfy_topic', 'deepseek_key', 'deepseek_model', 'daily_push_times'];
   for (const key of allowed) {
     if (req.body[key] !== undefined) {
       db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)').run(key, req.body[key]);

@@ -14,6 +14,7 @@ const WorkflowsPage = {
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
         <h2 style="font-size:1rem;">流程模板</h2>
         <button class="btn btn-sm btn-outline" id="aiGenWfBtn">AI 生成模板</button>
+        <button class="btn btn-sm btn-primary" id="newWfBtn">+ 新建模板</button>
       </div>
 
       <div id="aiGenResult"></div>
@@ -102,6 +103,9 @@ const WorkflowsPage = {
       });
     });
 
+    // Manual create workflow
+    $('#newWfBtn').addEventListener('click', () => this.showCreateModal(container));
+
     // AI generate workflow
     $('#aiGenWfBtn').addEventListener('click', async () => {
       const el = $('#aiGenResult');
@@ -119,6 +123,63 @@ const WorkflowsPage = {
         }
       } catch (err) {
         el.innerHTML = `<div class="card" style="color:var(--red);">错误：${escapeHtml(err.message)}</div>`;
+      }
+    });
+  },
+
+  showCreateModal(container) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <h3>新建流程模板</h3>
+        <form id="wfForm">
+          <div class="form-group">
+            <label>流程名称 *</label>
+            <input type="text" id="wfName" required placeholder="如：Bug修复流程">
+          </div>
+          <div class="form-group">
+            <label>描述</label>
+            <input type="text" id="wfDesc" placeholder="流程用途说明">
+          </div>
+          <div class="form-group">
+            <label>分类</label>
+            <input type="text" id="wfCategory" placeholder="如：开发、运维、设计">
+          </div>
+          <div class="form-group">
+            <label>步骤（每行一个）</label>
+            <textarea id="wfSteps" rows="6" placeholder="接到需求报告&#10;分析问题根因&#10;制定修复方案&#10;代码修改&#10;测试验证&#10;上线部署&#10;复盘总结"></textarea>
+          </div>
+          <div class="btn-group">
+            <button type="submit" class="btn btn-primary">创建</button>
+            <button type="button" class="btn btn-outline" id="cancelWfBtn">取消</button>
+          </div>
+        </form>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const close = () => modal.remove();
+    modal.querySelector('.modal-backdrop').addEventListener('click', close);
+    $('#cancelWfBtn').addEventListener('click', close);
+
+    $('#wfForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const steps = $('#wfSteps').value.split('\n').map(s => s.trim()).filter(s => s);
+      if (steps.length === 0) { showToast('请至少填写一个步骤'); return; }
+      try {
+        await API.post('/api/workflows', {
+          name: $('#wfName').value,
+          description: $('#wfDesc').value,
+          category: $('#wfCategory').value,
+          steps
+        });
+        close();
+        showToast('流程模板已创建');
+        this.render(container);
+      } catch (err) {
+        showToast('错误：' + err.message);
       }
     });
   }
