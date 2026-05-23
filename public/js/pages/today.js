@@ -210,9 +210,18 @@ const TodayPage = {
           if (cb) { cb.checked = !cb.checked; cb.dispatchEvent(new Event('change')); }
           return;
         }
-        if (e.target.closest('.today-progress-btn')) return; // Don't open detail when clicking progress
+        if (e.target.closest('.today-progress-btn')) return;
         const id = parseInt(el.dataset.id);
-        API.get(`/api/entries/${id}`).then(data => this.showDetail(data, () => this.render(container))).catch(() => {});
+        // Check if this is a project (has sub-steps) → use project view
+        API.get(`/api/entries/project/${id}`).then(data => {
+          if (data.steps && data.steps.length > 0) {
+            this.showProjectDetail(data, () => this.render(container));
+          } else {
+            API.get(`/api/entries/${id}`).then(d => this.showDetail(d, () => this.render(container))).catch(() => {});
+          }
+        }).catch(() => {
+          API.get(`/api/entries/${id}`).then(d => this.showDetail(d, () => this.render(container))).catch(() => {});
+        });
       });
     });
 
