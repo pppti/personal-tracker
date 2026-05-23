@@ -1,4 +1,4 @@
-const CACHE = 'tracker-v2';
+const CACHE = 'tracker-v3';
 const ASSETS = [
   '/',
   '/css/style.css',
@@ -8,6 +8,7 @@ const ASSETS = [
   '/js/pages/login.js',
   '/js/pages/dashboard.js',
   '/js/pages/entries.js',
+  '/js/pages/workflows.js',
   '/js/pages/ai-chat.js',
   '/js/pages/today.js',
   '/js/pages/summary.js',
@@ -33,6 +34,12 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
+  // Never cache API calls - always fetch fresh data
+  if (url.pathname.startsWith('/api/')) {
+    e.respondWith(fetch(e.request));
+    return;
+  }
   e.respondWith(
     caches.match(e.request).then(cached => {
       return cached || fetch(e.request).then(res => {
