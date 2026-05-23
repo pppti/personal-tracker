@@ -85,16 +85,53 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'create_workflow',
-      description: '创建一个工作流程模板。当用户描述了一个工作流程、SOP、或者想让AI梳理一套工作步骤时使用。根据用户的描述梳理出结构化的步骤列表。',
+      description: '创建一个工作流程模板。当用户描述了一个工作流程、SOP、或者想让AI梳理一套工作步骤时使用。',
       parameters: {
         type: 'object',
         properties: {
-          name: { type: 'string', description: '流程名称，简洁概括' },
-          description: { type: 'string', description: '流程描述，说明这个流程的用途' },
-          category: { type: 'string', description: '分类，如：工作、个人、学习、开发、运维等' },
-          steps: { type: 'array', items: { type: 'string' }, description: '步骤列表，每步要具体可执行，5-8步为佳。如["接到需求", "分析可行性", "设计方案", "开发实现", "测试验证", "上线发布", "复盘总结"]' }
+          name: { type: 'string', description: '流程名称' },
+          description: { type: 'string', description: '流程描述' },
+          category: { type: 'string', description: '分类' },
+          steps: { type: 'array', items: { type: 'string' }, description: '步骤列表，每步要具体可执行' }
         },
         required: ['name', 'steps']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_workflow',
+      description: '修改已有的工作流程模板。如添加/删除/重排步骤、改名称、改描述。用户说"模板第3步改成XX"时，需要先获取模板信息再修改。',
+      parameters: {
+        type: 'object',
+        properties: {
+          workflow_id: { type: 'integer', description: '要修改的流程模板ID' },
+          name: { type: 'string', description: '新名称（可选）' },
+          description: { type: 'string', description: '新描述（可选）' },
+          steps: { type: 'array', items: { type: 'string' }, description: '修改后的完整步骤列表（可选）' }
+        },
+        required: ['workflow_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'edit_entry',
+      description: '修改已有的工作记录。用户说"把XX改成YY""更新进度到50%"时使用。',
+      parameters: {
+        type: 'object',
+        properties: {
+          entry_id: { type: 'integer', description: '要修改的记录ID' },
+          title: { type: 'string', description: '新标题（可选）' },
+          content: { type: 'string', description: '新内容（可选）' },
+          status: { type: 'string', enum: ['pending','in_progress','done'], description: '新状态（可选）' },
+          progress: { type: 'integer', description: '新进度 0-100（可选）' },
+          priority: { type: 'string', enum: ['urgent','high','medium','low'], description: '新优先级（可选）' },
+          deadline: { type: 'string', description: '新截止日期（可选）' }
+        },
+        required: ['entry_id']
       }
     }
   }
@@ -131,6 +168,34 @@ function executeToolCall(name, args) {
     const row = db.prepare('SELECT * FROM workflows WHERE id = ?').get(result.lastInsertRowid);
     sendNotification('AI 已创建流程模板', `${row.name}（${args.steps.length}个步骤）`);
     return { action: 'create_workflow', workflow: row };
+  }
+  if (name === 'update_workflow') {
+    const id = args.workflow_id;
+    const existing = db.prepare('SELECT * FROM workflows WHERE id = ?').get(id);
+    if (!existing) return { action: 'error', message: '流程模板不存在' };
+    const steps = args.steps ? JSON.stringify(args.steps) : existing.steps;
+    db.prepare('UPDATE workflows SET name=?, description=?, category=?, steps=? WHERE id=?')
+      .run(args.name || existing.name, args.description || existing.description,
+        args.category || existing.category, steps, id);
+    const row = db.prepare('SELECT * FROM workflows WHERE id = ?').get(id);
+    return { action: 'update_workflow', workflow: row };
+  }
+  if (name === 'edit_entry') {
+    const id = args.entry_id;
+    const existing = db.prepare('SELECT * FROM entries WHERE id = ?').get(id);
+    if (!existing) return { action: 'error', message: '记录不存在' };
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    db.prepare(
+      'UPDATE entries SET title=?, content=?, status=?, category=?, deadline=?, priority=?, progress=?, updated_at=? WHERE id=?'
+    ).run(
+      args.title || existing.title, args.content !== undefined ? args.content : existing.content,
+      args.status || existing.status, args.category || existing.category,
+      args.deadline !== undefined ? (args.deadline || null) : existing.deadline,
+      args.priority || existing.priority, args.progress !== undefined ? args.progress : existing.progress,
+      now, id
+    );
+    const row = db.prepare('SELECT * FROM entries WHERE id = ?').get(id);
+    return { action: 'edit_entry', entry: row };
   }
   return { action: 'unknown' };
 }
@@ -187,66 +252,63 @@ router.post('/chat', async (req, res) => {
 
 router.post('/chat/action', async (req, res) => {
   try {
-    const { message: userMessage } = req.body;
+    const { message: userMessage, history } = req.body;
 
-    const entries = db.prepare('SELECT * FROM entries ORDER BY created_at DESC LIMIT 30').all();
+    const entries = db.prepare('SELECT * FROM entries ORDER BY created_at DESC LIMIT 50').all();
     const reminders = db.prepare('SELECT * FROM reminders ORDER BY remind_at DESC LIMIT 20').all();
+    const workflows = db.prepare('SELECT * FROM workflows ORDER BY created_at DESC LIMIT 20').all();
     const now = new Date();
-    const nowStr = now.toISOString().replace('T', ' ').slice(0, 16);
-    const todayStr = now.toISOString().slice(0, 10);
+    const y = now.getFullYear(); const mo = String(now.getMonth()+1).padStart(2,'0');
+    const d = String(now.getDate()).padStart(2,'0'); const h = String(now.getHours()).padStart(2,'0');
+    const mi = String(now.getMinutes()).padStart(2,'0');
+    const nowStr = `${y}-${mo}-${d} ${h}:${mi}`;
 
-    const context = `当前时间：${nowStr}\n今天日期：${todayStr}\n\n现有工作记录：\n${entries.map(e => `- [${statusCN(e.status)}] ${e.title}（分类：${e.category || '未分类'}）`).join('\n') || '无'}\n\n现有提醒：\n${reminders.map(r => `- ${r.message}（${r.remind_at}${r.notified ? '，已通知' : ''}）`).join('\n') || '无'}`;
+    const wfList = workflows.map(w => {
+      const s = JSON.parse(w.steps||'[]');
+      return `[模板${w.id}] ${w.name}（${s.length}步: ${s.join(' → ')}）`;
+    }).join('\n');
 
-    const data = await chat([
+    const context = `当前时间：${nowStr}\n\n工作记录：\n${entries.map(e => `[${e.id}] [${statusCN(e.status)}] ${e.title}（${e.category||'未分类'}，进度${e.progress||0}%，优先级${e.priority||'中'}）`).join('\n')}\n\n流程模板：\n${wfList || '无'}`;
+
+    // Build messages with conversation history
+    const messages = [
       {
         role: 'system',
-        content: `你是一个智能工作助手。你可以帮用户：
-1. 创建/管理工作记录（create_entry）——自动推断分类、截止日期(deadline)、优先级(priority)、进度(progress)
-2. 设置提醒闹钟（set_reminder）——自动解析时间
-3. 创建流程模板（create_workflow）——用户描述工作流程后，梳理成结构化的步骤模板
-4. 查询和总结工作
-
-重要规则：
-- 用户说"帮我梳理XX流程""帮我创建XX模板""XX的标准步骤是什么"时，调用create_workflow创建流程模板
-- 流程步骤要具体可执行，5-8步为佳，按实际工作顺序排列
-- 用户提到截止日期/deadline/DDL时，必须设置deadline字段
-- 根据deadline自动判断优先级：已过期或今天→urgent，3天内→high，7天内→medium，其他→low
-- 用户说"今天要做/需要跟进/别忘了"这类时，设置deadline为今天
-- 每次回复最多进行3个操作
-- 操作完成后用简短中文告诉用户做了什么`
+        content: `你是智能工作助手，支持连续对话。你能：创建/编辑记录(create_entry/edit_entry)、设置提醒(set_reminder)、创建/修改流程模板(create_workflow/update_workflow)。ID在上下文中标注了。用户说"修改模板3第2步"时，调update_workflow；说"把记录5改成已完成"时，调edit_entry。每次最多3操作。`
       },
-      { role: 'user', content: `${context}\n\n用户说：${userMessage}` }
-    ], TOOLS);
+      { role: 'user', content: context }
+    ];
+    if (history && Array.isArray(history)) {
+      for (const h of history.slice(-16)) messages.push(h);
+    }
+    messages.push({ role: 'user', content: userMessage });
+
+    const data = await chat(messages, TOOLS);
 
     const msg = data.choices[0].message;
     const actions = [];
 
     if (msg.tool_calls) {
       for (const tc of msg.tool_calls) {
-        const args = JSON.parse(tc.function.arguments);
-        const result = executeToolCall(tc.function.name, args);
-        actions.push(result);
+        try {
+          const args = JSON.parse(tc.function.arguments);
+          const result = executeToolCall(tc.function.name, args);
+          actions.push(result);
+        } catch {}
       }
-
-      const followup = await chat([
-        ...data.choices[0].message.messages || [
-          { role: 'system', content: '你是一个智能工作助手。用简短的中文告诉用户你完成了什么操作。' },
-          { role: 'user', content: userMessage },
-          { role: 'assistant', content: '', tool_calls: msg.tool_calls },
-          { role: 'tool', content: actions.map(a => JSON.stringify(a)).join('\n'), tool_call_id: msg.tool_calls[0].id }
-        ],
-        { role: 'user', content: '请用一句话告诉我你做了什么。' }
-      ]);
-
-      res.json({
-        reply: followup.choices[0].message.content,
-        actions
-      });
+      // Simple follow-up: just tell user what happened
+      const actionDescs = actions.map(a => {
+        if (a.action === 'create_entry') return `已创建记录「${a.entry.title}」`;
+        if (a.action === 'edit_entry') return `已修改记录「${a.entry.title}」`;
+        if (a.action === 'create_workflow') return `已创建流程模板「${a.workflow.name}」`;
+        if (a.action === 'update_workflow') return `已更新流程模板「${a.workflow.name}」`;
+        if (a.action === 'set_reminder') return `已设置提醒「${a.reminder.message}」`;
+        if (a.action === 'error') return a.message;
+        return '';
+      }).filter(Boolean);
+      res.json({ reply: actionDescs.join('；') || '操作完成', actions });
     } else {
-      res.json({
-        reply: msg.content,
-        actions: []
-      });
+      res.json({ reply: msg.content, actions: [] });
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
