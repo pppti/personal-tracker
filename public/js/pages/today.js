@@ -4,6 +4,20 @@ const TodayPage = {
     const todayEntries = await API.get('/api/entries/today');
     const allReminders = await API.get('/api/reminders');
 
+    const allEntries = await API.get('/api/entries');
+    const [workflows] = await Promise.all([
+      API.get('/api/workflows')
+    ]);
+
+    // Sub-tasks from active workflows
+    const workflowSubs = allEntries.filter(e => e.parent_id && e.status !== 'done');
+    // Group by parent
+    const parentMap = {};
+    for (const sub of workflowSubs) {
+      if (!parentMap[sub.parent_id]) parentMap[sub.parent_id] = [];
+      parentMap[sub.parent_id].push(sub);
+    }
+
     const overdue = todayEntries.filter(e => e.deadline && e.deadline < today);
     const dueToday = todayEntries.filter(e => e.deadline && e.deadline === today);
     const inProgress = todayEntries.filter(e => e.status === 'in_progress' && (!e.deadline || e.deadline >= today));
@@ -56,7 +70,41 @@ const TodayPage = {
         </div>
       ` : ''}
 
-      ${overdue.length === 0 && dueToday.length === 0 && inProgress.length === 0 && pending.length === 0 ? `
+      ${Object.keys(parentMap).length > 0 ? `
+        <div class="card" style="border-left:3px solid var(--accent);">
+          <h3 style="font-size:0.9rem;color:var(--accent);margin-bottom:8px;">流程步骤 (${workflowSubs.length})</h3>
+          ${Object.entries(parentMap).map(([pid, subs]) => {
+            const parent = allEntries.find(e => e.id === parseInt(pid));
+            return `
+              <div style="margin-bottom:6px;">
+                <div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:2px;">${parent ? escapeHtml(parent.title) : ''}</div>
+                ${subs.map(s => this.renderEntry(s)).join('')}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      ` : ''}
+
+      ${workflows.length > 0 ? `
+        <div class="card" style="border-left:3px solid var(--green);">
+          <h3 style="font-size:0.9rem;color:var(--green);margin-bottom:8px;">快速启动流程</h3>
+          ${workflows.slice(0, 3).map(w => {
+            const steps = JSON.parse(w.steps || '[]');
+            return `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+                <div>
+                  <span style="font-size:0.85rem;">${escapeHtml(w.name)}</span>
+                  <span style="font-size:0.72rem;color:var(--text-dim);margin-left:6px;">${steps.length}步</span>
+                </div>
+                <button class="btn btn-sm btn-primary quick-start-btn" data-id="${w.id}">启动</button>
+              </div>
+            `;
+          }).join('')}
+          <a href="#workflows" style="font-size:0.78rem;color:var(--accent);display:block;margin-top:6px;">查看全部模板 →</a>
+        </div>
+      ` : ''}
+
+      ${overdue.length === 0 && dueToday.length === 0 && inProgress.length === 0 && pending.length === 0 && Object.keys(parentMap).length === 0 ? `
         <div class="empty-state">
           <p>今天没有待办事项</p>
           <button class="btn btn-primary" id="todayAddBtn">+ 新建记录</button>
@@ -74,6 +122,24 @@ const TodayPage = {
     });
     $('#todayAddBtn')?.addEventListener('click', () => {
       EntriesPage.showModal(null, () => this.render(container));
+    });
+
+    // Quick start workflow buttons
+    $$('.quick-start-btn', container).forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        btn.textContent = '...';
+        btn.disabled = true;
+        try {
+          const data = await API.post(`/api/workflows/${btn.dataset.id}/start`, {});
+          showToast(`流程已启动：${data.subEntries.length} 个子任务已添加到今日待办`);
+          this.render(container);
+        } catch (err) {
+          showToast('错误：' + err.message);
+          btn.textContent = '启动';
+          btn.disabled = false;
+        }
+      });
     });
 
     $$('.today-entry', container).forEach(el => {
@@ -185,6 +251,7 @@ const TodayPage = {
         <div class="btn-group" style="margin-top:14px;">
           <button class="btn btn-outline btn-sm" id="closeDetailBtn">关闭</button>
           <button class="btn btn-outline btn-sm" id="editDetailBtn">编辑</button>
+          ${entry.status === 'done' ? '<button class="btn btn-accent btn-sm" id="retrospectiveBtn">AI 复盘</button>' : ''}
         </div>
       </div>
     `;
@@ -218,6 +285,29 @@ const TodayPage = {
         }
       });
     });
+
+    const retroBtn = $('#retrospectiveBtn');
+    if (retroBtn) {
+      retroBtn.addEventListener('click', async () => {
+        retroBtn.textContent = '分析中...';
+        retroBtn.disabled = true;
+        try {
+          const data = await API.post('/api/deepseek/retrospective', { entryId: entry.id });
+          const retroDiv = document.createElement('div');
+          retroDiv.style.cssText = 'margin-top:12px;padding:12px;background:var(--surface2);border-radius:8px;font-size:0.82rem;line-height:1.6;white-space:pre-wrap;';
+          retroDiv.textContent = data.retrospective;
+          const title = document.createElement('h4');
+          title.style.cssText = 'font-size:0.85rem;color:var(--accent);margin-bottom:6px;';
+          title.textContent = 'AI 复盘分析';
+          retroDiv.prepend(title);
+          retroBtn.replaceWith(retroDiv);
+        } catch (err) {
+          showToast('错误：' + err.message);
+          retroBtn.textContent = 'AI 复盘';
+          retroBtn.disabled = false;
+        }
+      });
+    }
 
     $('#addProgressBtn').addEventListener('click', async () => {
       const note = $('#progressNote').value.trim();

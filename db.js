@@ -27,6 +27,7 @@ db.exec(`
     deadline TEXT,
     priority TEXT DEFAULT 'medium',
     progress INTEGER DEFAULT 0,
+    parent_id INTEGER,
     created_at TEXT DEFAULT (datetime('now','localtime')),
     updated_at TEXT DEFAULT (datetime('now','localtime'))
   );
@@ -40,6 +41,16 @@ db.exec(`
     FOREIGN KEY (entry_id) REFERENCES entries(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS workflows (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    category TEXT DEFAULT '',
+    steps TEXT DEFAULT '[]',
+    created_from_entry_id INTEGER,
+    created_at TEXT DEFAULT (datetime('now','localtime'))
+  );
+
   CREATE TABLE IF NOT EXISTS reminders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     message TEXT NOT NULL,
@@ -51,10 +62,11 @@ db.exec(`
   );
 `);
 
-// Auto-migrate: add columns if they don't exist (safe to run multiple times)
+// Auto-migrate existing databases
 try { db.exec('ALTER TABLE entries ADD COLUMN deadline TEXT'); } catch {}
 try { db.exec('ALTER TABLE entries ADD COLUMN priority TEXT DEFAULT \'medium\''); } catch {}
 try { db.exec('ALTER TABLE entries ADD COLUMN progress INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE entries ADD COLUMN parent_id INTEGER'); } catch {}
 try { db.exec('ALTER TABLE reminders ADD COLUMN entry_id INTEGER'); } catch {}
 
 module.exports = db;

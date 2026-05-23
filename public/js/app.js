@@ -55,6 +55,7 @@ const router = {
     const titles = {
       dashboard: '工作台',
       today: '今日待办',
+      workflows: '流程模板',
       entries: '工作记录',
       'ai-chat': 'AI 助手',
       summary: '汇总导出',
@@ -71,6 +72,7 @@ const router = {
       switch (page) {
         case 'dashboard': await DashboardPage.render(main); break;
         case 'today': await TodayPage.render(main); break;
+        case 'workflows': await WorkflowsPage.render(main); break;
         case 'entries': await EntriesPage.render(main); break;
         case 'ai-chat': await AIChatPage.render(main); break;
         case 'summary': await SummaryPage.render(main); break;

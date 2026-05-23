@@ -26,6 +26,7 @@ app.use('/api/reminders', authMiddleware, require('./routes/reminders'));
 app.use('/api/summary', authMiddleware, require('./routes/summary'));
 app.use('/api/settings', authMiddleware, require('./routes/settings'));
 app.use('/api/deepseek', authMiddleware, require('./routes/deepseek'));
+app.use('/api/workflows', authMiddleware, require('./routes/workflows'));
 
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

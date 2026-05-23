@@ -5,13 +5,15 @@ const AIChatPage = {
         你可以直接对我说：<br>
         "今天完成了仪表盘设计，花了3小时" → 自动创建记录并分类<br>
         "明天下午3点提醒我开会" → 自动设置闹钟<br>
-        "帮我看看这周的工作情况" → 智能汇总
+        "帮我复盘这个项目" → AI 复盘分析 & 生成流程模板
       </div>
       <div id="chatMessages" style="max-height:calc(100vh - 280px);overflow-y:auto;margin-bottom:12px;"></div>
       <div style="display:flex;gap:8px;">
+        <button class="btn btn-outline btn-sm" id="chatVoiceBtn" title="语音输入">🎤</button>
         <input type="text" id="chatInput" placeholder="说说你做了什么，或者需要什么帮助..." style="flex:1;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:0.9rem;">
         <button class="btn btn-primary" id="chatSendBtn">发送</button>
       </div>
+      <span id="chatVoiceStatus" style="display:none;font-size:0.78rem;color:var(--accent);margin-top:4px;">正在聆听...</span>
     `;
 
     $('#chatSendBtn').addEventListener('click', () => this.send());
@@ -21,6 +23,47 @@ const AIChatPage = {
         this.send();
       }
     });
+
+    // Voice input for AI chat
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'zh-CN';
+      recognition.interimResults = false;
+      recognition.continuous = false;
+
+      $('#chatVoiceBtn').addEventListener('click', () => {
+        if ($('#chatVoiceStatus').style.display === 'none' || !$('#chatVoiceStatus').style.display) {
+          recognition.start();
+          $('#chatVoiceStatus').style.display = 'block';
+          $('#chatVoiceBtn').textContent = '⏹';
+        } else {
+          recognition.stop();
+        }
+      });
+
+      recognition.addEventListener('result', (e) => {
+        const transcript = e.results[0][0].transcript;
+        const input = $('#chatInput');
+        input.value = input.value ? input.value + ' ' + transcript : transcript;
+        $('#chatVoiceStatus').style.display = 'none';
+        $('#chatVoiceBtn').textContent = '🎤';
+        // Auto-send if there's text
+        if (input.value.trim()) this.send();
+      });
+
+      recognition.addEventListener('error', () => {
+        $('#chatVoiceStatus').style.display = 'none';
+        $('#chatVoiceBtn').textContent = '🎤';
+      });
+
+      recognition.addEventListener('end', () => {
+        $('#chatVoiceStatus').style.display = 'none';
+        $('#chatVoiceBtn').textContent = '🎤';
+      });
+    } else {
+      $('#chatVoiceBtn').style.display = 'none';
+    }
   },
 
   async send() {

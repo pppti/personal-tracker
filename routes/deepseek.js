@@ -228,4 +228,72 @@ router.post('/chat/action', async (req, res) => {
   }
 });
 
+// AI Retrospective: analyze a completed entry and generate lessons learned
+router.post('/retrospective', async (req, res) => {
+  try {
+    const { entryId } = req.body;
+    const entry = db.prepare('SELECT * FROM entries WHERE id = ?').get(entryId);
+    if (!entry) return res.status(404).json({ error: 'Entry not found' });
+    const logs = db.prepare('SELECT * FROM progress_log WHERE entry_id = ? ORDER BY created_at ASC').all(entryId);
+
+    const logsText = logs.map(l => `- ${l.note || '进度 ' + l.progress + '%'} (${l.created_at})`).join('\n');
+    const data = await chat([
+      { role: 'system', content: '你是一个工作复盘专家。请用中文对用户完成的工作进行复盘分析，提炼经验教训和可复用的流程。' },
+      { role: 'user', content: `请对以下完成的工作进行复盘：\n\n标题：${entry.title}\n内容：${entry.content || ''}\n分类：${entry.category || ''}\n进度记录：\n${logsText || '无'}\n\n请提供：\n1. 完成情况总结\n2. 做得好的地方\n3. 可以改进的地方\n4. 提炼出的经验/教训\n5. 如果下次做类似的事，建议的步骤流程（可以作为模板）` }
+    ]);
+    res.json({ retrospective: data.choices[0].message.content });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// AI Generate Workflow from completed entries
+router.post('/generate-workflow', async (req, res) => {
+  try {
+    const { category } = req.body;
+    let sql = 'SELECT * FROM entries WHERE status = ?';
+    const params = ['done'];
+    if (category) {
+      sql += ' AND category = ?';
+      params.push(category);
+    }
+    const entries = db.prepare(sql + ' ORDER BY created_at DESC LIMIT 20').all();
+
+    if (entries.length === 0) {
+      return res.json({ workflow: null, message: '没有已完成的任务可供分析' });
+    }
+
+    const entriesText = entries.map(e =>
+      `- ${e.title}：${e.content || ''}（分类：${e.category || ''}，进度：${e.progress || 0}%）`
+    ).join('\n');
+
+    const data = await chat([
+      { role: 'system', content: '你是一个工作流程专家。分析用户已完成的任务，提取共性，创建一个可复用的工作流程模板。输出JSON格式。' },
+      { role: 'user', content: `以下是我已完成的任务：\n\n${entriesText}\n\n请分析这些任务的共性，生成一个工作流程模板。返回JSON：\n{\n  "name": "流程名称",\n  "description": "流程描述",\n  "category": "分类",\n  "steps": ["步骤1", "步骤2", "步骤3", ...]\n}\n\n只输出JSON，不要加其他文字。步骤要具体、可执行，5-8步为佳。` }
+    ]);
+
+    // Try to parse JSON from the response
+    let workflow;
+    try {
+      const text = data.choices[0].message.content;
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        workflow = JSON.parse(jsonMatch[0]);
+      }
+    } catch {}
+
+    if (workflow && workflow.name && workflow.steps) {
+      const result = db.prepare(
+        'INSERT INTO workflows (name, description, category, steps) VALUES (?,?,?,?)'
+      ).run(workflow.name, workflow.description || '', workflow.category || category || '', JSON.stringify(workflow.steps));
+      workflow.id = result.lastInsertRowid;
+      res.json({ workflow, message: '流程模板已自动创建' });
+    } else {
+      res.json({ workflow: null, message: '未能生成流程模板，请再试一次', raw: data.choices[0].message.content });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
