@@ -121,11 +121,61 @@ const TodayPage = {
         </div>
       ` : ''}
 
-      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
+      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
         <button class="btn btn-primary btn-sm" id="todayQuickAddBtn">+ 快速添加</button>
         <a href="#ai-chat" style="text-decoration:none;"><button class="btn btn-outline btn-sm">告诉AI今天做什么</button></a>
+        <button class="btn btn-outline btn-sm" id="todayBatchBtn" style="color:var(--red);">批量删除</button>
+        <button class="btn btn-danger btn-sm" id="todayDoDeleteBtn" style="display:none;">确认删除</button>
+        <span id="todayBatchCount" style="display:none;font-size:0.78rem;color:var(--red);"></span>
       </div>
     `;
+
+    // Batch delete mode
+    this.todaySelected = this.todaySelected || new Set();
+    this.batchMode = false;
+    $('#todayBatchBtn').addEventListener('click', () => {
+      this.batchMode = !this.batchMode;
+      $('#todayBatchBtn').textContent = this.batchMode ? '取消' : '批量删除';
+      $('#todayDoDeleteBtn').style.display = this.batchMode ? '' : 'none';
+      $('#todayBatchCount').style.display = this.batchMode ? '' : 'none';
+      if (!this.batchMode) { this.todaySelected.clear(); }
+      this.render(container);
+    });
+
+    $('#todayDoDeleteBtn').addEventListener('click', async () => {
+      if (this.todaySelected.size === 0) { showToast('请先勾选要删除的记录'); return; }
+      if (!confirm(`确定删除 ${this.todaySelected.size} 条记录？`)) return;
+      try {
+        await API.post('/api/entries/batch-delete', { ids: [...this.todaySelected] });
+        showToast(`已删除 ${this.todaySelected.size} 条`);
+        this.todaySelected.clear();
+        this.batchMode = false;
+        this.render(container);
+      } catch (err) { showToast('错误：' + err.message); }
+    });
+
+    // Update checkbox handling
+    $$('.today-checkbox', container).forEach(cb => {
+      cb.addEventListener('change', () => {
+        const id = parseInt(cb.dataset.id);
+        if (cb.checked) this.todaySelected.add(id);
+        else this.todaySelected.delete(id);
+        $('#todayBatchCount').textContent = `已选 ${this.todaySelected.size} 条`;
+      });
+    });
+    if (this.batchMode) {
+      $('#todayBatchCount').textContent = `已选 ${this.todaySelected.size} 条`;
+    }
+
+    // In batch mode, clicking entry toggles checkbox instead of opening detail
+    $$('.today-entry', container).forEach(el => {
+      if (this.batchMode) {
+        el.addEventListener('click', () => {
+          const cb = el.querySelector('.today-checkbox');
+          if (cb) { cb.checked = !cb.checked; cb.dispatchEvent(new Event('change')); }
+        });
+      }
+    });
 
     $('#todayQuickAddBtn')?.addEventListener('click', () => {
       EntriesPage.showModal(null, () => this.render(container));
@@ -191,9 +241,11 @@ const TodayPage = {
     const deadline = e.deadline ? new Date(e.deadline) : null;
     const today = new Date().toISOString().slice(0, 10);
     const isOverdue = deadline && e.deadline < today;
+    const cbStyle = this.batchMode ? '' : 'display:none;';
 
     return `
-      <div class="today-entry card" data-id="${e.id}" style="padding:12px;margin-bottom:6px;cursor:pointer;">
+      <div class="today-entry card" data-id="${e.id}" style="padding:12px;margin-bottom:6px;${this.batchMode?'cursor:default;':''}">
+        ${this.batchMode ? `<input type="checkbox" class="today-checkbox" data-id="${e.id}" style="position:absolute;right:10px;top:10px;width:18px;height:18px;z-index:1;" ${this.todaySelected&&this.todaySelected.has(e.id)?'checked':''}>` : ''}
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
           <div style="flex:1;">
             <div style="font-size:0.9rem;font-weight:500;">${escapeHtml(e.title)}</div>
