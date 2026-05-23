@@ -167,16 +167,6 @@ const TodayPage = {
       $('#todayBatchCount').textContent = `已选 ${this.todaySelected.size} 条`;
     }
 
-    // In batch mode, clicking entry toggles checkbox instead of opening detail
-    $$('.today-entry', container).forEach(el => {
-      if (this.batchMode) {
-        el.addEventListener('click', () => {
-          const cb = el.querySelector('.today-checkbox');
-          if (cb) { cb.checked = !cb.checked; cb.dispatchEvent(new Event('change')); }
-        });
-      }
-    });
-
     $('#todayQuickAddBtn')?.addEventListener('click', () => {
       EntriesPage.showModal(null, () => this.render(container));
     });
@@ -212,11 +202,17 @@ const TodayPage = {
       });
     });
 
+    // Entry click: batch mode → toggle checkbox, normal → detail
     $$('.today-entry', container).forEach(el => {
-      el.addEventListener('click', async () => {
+      el.addEventListener('click', (e) => {
+        if (this.batchMode) {
+          const cb = el.querySelector('.today-checkbox');
+          if (cb) { cb.checked = !cb.checked; cb.dispatchEvent(new Event('change')); }
+          return;
+        }
+        if (e.target.closest('.today-progress-btn')) return; // Don't open detail when clicking progress
         const id = parseInt(el.dataset.id);
-        const data = await API.get(`/api/entries/${id}`);
-        this.showDetail(data, () => this.render(container));
+        API.get(`/api/entries/${id}`).then(data => this.showDetail(data, () => this.render(container))).catch(() => {});
       });
     });
 
