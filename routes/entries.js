@@ -76,6 +76,23 @@ router.put('/:id', (req, res) => {
     req.params.id
   );
 
+  // Cascade: if parent marked done, complete all sub-entries too
+  if (status === 'done' && status !== existing.status) {
+    db.prepare('UPDATE entries SET status = ?, progress = 100, updated_at = ? WHERE parent_id = ? AND status != ?')
+      .run('done', now, req.params.id, 'done');
+  }
+
+  // Cascade: if sub-entry marked done, check if all subs done → complete parent
+  if (status === 'done' && existing.parent_id) {
+    const remaining = db.prepare(
+      'SELECT COUNT(*) as cnt FROM entries WHERE parent_id = ? AND status != ? AND id != ?'
+    ).get(existing.parent_id, 'done', req.params.id);
+    if (remaining.cnt === 0) {
+      db.prepare('UPDATE entries SET status = ?, progress = 100, updated_at = ? WHERE id = ?')
+        .run('done', now, existing.parent_id);
+    }
+  }
+
   // Log progress change
   if (progress !== undefined && progress !== existing.progress) {
     const oldProgress = existing.progress || 0;
