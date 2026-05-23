@@ -23,9 +23,12 @@ const EntriesPage = {
         </select>
       </div>
       <button class="btn btn-primary btn-block" id="addEntryBtn">+ 新建记录</button>
-      <div style="display:flex;gap:8px;margin-top:6px;">
+      <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center;">
         <button class="btn btn-outline btn-sm" id="exportEntriesBtn">导出 CSV</button>
         <button class="btn btn-outline btn-sm" id="exportEntriesJsonBtn">导出 JSON</button>
+        <button class="btn btn-outline btn-sm" id="batchSelectBtn" style="color:var(--red);">批量选择</button>
+        <button class="btn btn-danger btn-sm" id="batchDeleteBtn" style="display:none;">删除选中</button>
+        <span id="batchCount" style="display:none;font-size:0.78rem;color:var(--red);"></span>
       </div>
       <div id="entriesList" style="margin-top:14px;"></div>
     `;
@@ -51,6 +54,34 @@ const EntriesPage = {
 
     $('#exportEntriesBtn').addEventListener('click', () => this.exportCSV());
     $('#exportEntriesJsonBtn').addEventListener('click', () => this.exportJSON());
+
+    // Batch select/delete
+    let batchMode = false;
+    $('#batchSelectBtn').addEventListener('click', () => {
+      batchMode = !batchMode;
+      $('#batchSelectBtn').textContent = batchMode ? '取消选择' : '批量选择';
+      $('#batchDeleteBtn').style.display = batchMode ? '' : 'none';
+      $('#batchCount').style.display = batchMode ? '' : 'none';
+      this.batchMode = batchMode;
+      this.selectedIds = this.selectedIds || new Set();
+      if (!batchMode) { this.selectedIds.clear(); this.updateBatchCount(); }
+      this.renderList();
+    });
+
+    $('#batchDeleteBtn').addEventListener('click', async () => {
+      if (!this.selectedIds || this.selectedIds.size === 0) { showToast('请先勾选要删除的记录'); return; }
+      if (!confirm(`确定删除 ${this.selectedIds.size} 条记录吗？`)) return;
+      try {
+        await API.post('/api/entries/batch-delete', { ids: [...this.selectedIds] });
+        showToast(`已删除 ${this.selectedIds.size} 条记录`);
+        this.selectedIds.clear();
+        this.batchMode = false;
+        $('#batchSelectBtn').textContent = '批量选择';
+        $('#batchDeleteBtn').style.display = 'none';
+        $('#batchCount').style.display = 'none';
+        this.refresh();
+      } catch (err) { showToast('错误：' + err.message); }
+    });
 
     this.renderList();
   },
@@ -98,7 +129,8 @@ const EntriesPage = {
       return;
     }
     list.innerHTML = filtered.map(e => `
-      <div class="card entry-card" data-id="${e.id}">
+      <div class="card entry-card" data-id="${e.id}" style="${this.batchMode ? 'cursor:default;' : ''}">
+        ${this.batchMode ? `<input type="checkbox" class="batch-checkbox" data-id="${e.id}" style="position:absolute;right:10px;top:10px;width:18px;height:18px;" ${this.selectedIds.has(e.id)?'checked':''}>` : ''}
         <div class="entry-header">
           <div>
             <div class="entry-title">${escapeHtml(e.title)}</div>
@@ -114,11 +146,26 @@ const EntriesPage = {
     `).join('');
 
     $$('.entry-card', list).forEach(card => {
-      card.addEventListener('click', () => {
+      card.addEventListener('click', (event) => {
+        if (this.batchMode) {
+          const cb = card.querySelector('.batch-checkbox');
+          if (cb) {
+            cb.checked = !cb.checked;
+            if (cb.checked) this.selectedIds.add(parseInt(card.dataset.id));
+            else this.selectedIds.delete(parseInt(card.dataset.id));
+            this.updateBatchCount();
+          }
+          return;
+        }
         const entry = this.entries.find(e => e.id === parseInt(card.dataset.id));
         if (entry) this.showModal(entry, () => this.refresh());
       });
     });
+  },
+
+  updateBatchCount() {
+    const el = $('#batchCount');
+    if (el && this.selectedIds) el.textContent = `已选 ${this.selectedIds.size} 条`;
   },
 
   async refresh() {

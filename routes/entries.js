@@ -10,9 +10,11 @@ router.get('/', (_req, res) => {
 
 router.get('/today', (_req, res) => {
   const today = new Date().toISOString().slice(0, 10);
+  // Get entries but exclude sub-steps (parent_id != null) - only show top-level
   const rows = db.prepare(
     `SELECT * FROM entries
-     WHERE (deadline <= ? OR status IN ('pending','in_progress'))
+     WHERE parent_id IS NULL
+       AND (deadline <= ? OR status IN ('pending','in_progress'))
        AND status != 'done'
      ORDER BY
        CASE priority
@@ -26,6 +28,18 @@ router.get('/today', (_req, res) => {
        created_at DESC`
   ).all(today + ' 23:59:59');
   res.json(rows);
+});
+
+// Get project with its steps
+router.get('/project/:id', (req, res) => {
+  const project = db.prepare('SELECT * FROM entries WHERE id = ?').get(req.params.id);
+  if (!project) return res.status(404).json({ error: 'Not found' });
+  const steps = db.prepare('SELECT * FROM entries WHERE parent_id = ? ORDER BY id ASC').all(req.params.id);
+  for (const s of steps) {
+    const logs = db.prepare('SELECT * FROM progress_log WHERE entry_id = ? ORDER BY created_at DESC LIMIT 10').all(s.id);
+    s.logs = logs;
+  }
+  res.json({ project, steps });
 });
 
 router.get('/:id', (req, res) => {
@@ -109,7 +123,20 @@ router.delete('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM entries WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   db.prepare('DELETE FROM entries WHERE id = ?').run(req.params.id);
+  db.prepare('DELETE FROM entries WHERE parent_id = ?').run(req.params.id);
   res.json({ ok: true });
+});
+
+router.post('/batch-delete', (req, res) => {
+  const { ids } = req.body;
+  if (!ids || !Array.isArray(ids)) return res.status(400).json({ error: 'ids array required' });
+  const stmt = db.prepare('DELETE FROM entries WHERE id = ?');
+  const delSubs = db.prepare('DELETE FROM entries WHERE parent_id = ?');
+  for (const id of ids) {
+    delSubs.run(id);
+    stmt.run(id);
+  }
+  res.json({ ok: true, deleted: ids.length });
 });
 
 // Progress log for an entry

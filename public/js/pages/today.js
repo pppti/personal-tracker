@@ -9,13 +9,14 @@ const TodayPage = {
       API.get('/api/workflows')
     ]);
 
-    // Sub-tasks from active workflows
-    const workflowSubs = allEntries.filter(e => e.parent_id && e.status !== 'done');
-    // Group by parent
-    const parentMap = {};
-    for (const sub of workflowSubs) {
-      if (!parentMap[sub.parent_id]) parentMap[sub.parent_id] = [];
-      parentMap[sub.parent_id].push(sub);
+    // Find projects (entries with sub-steps)
+    const projects = allEntries.filter(e => {
+      return allEntries.some(sub => sub.parent_id === e.id) && e.status !== 'done';
+    });
+    // Map project → step count
+    const projectStepCount = {};
+    for (const p of projects) {
+      projectStepCount[p.id] = allEntries.filter(s => s.parent_id === p.id && s.status === 'done').length;
     }
 
     const overdue = todayEntries.filter(e => e.deadline && e.deadline < today);
@@ -70,15 +71,24 @@ const TodayPage = {
         </div>
       ` : ''}
 
-      ${Object.keys(parentMap).length > 0 ? `
+      ${projects.length > 0 ? `
         <div class="card" style="border-left:3px solid var(--accent);">
-          <h3 style="font-size:0.9rem;color:var(--accent);margin-bottom:8px;">流程步骤 (${workflowSubs.length})</h3>
-          ${Object.entries(parentMap).map(([pid, subs]) => {
-            const parent = allEntries.find(e => e.id === parseInt(pid));
+          <h3 style="font-size:0.9rem;color:var(--accent);margin-bottom:8px;">进行中的项目 (${projects.length})</h3>
+          ${projects.map(p => {
+            const totalSteps = allEntries.filter(s => s.parent_id === p.id).length;
+            const doneSteps = projectStepCount[p.id] || 0;
             return `
-              <div style="margin-bottom:6px;">
-                <div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:2px;">${parent ? escapeHtml(parent.title) : ''}</div>
-                ${subs.map(s => this.renderEntry(s)).join('')}
+              <div class="card project-card" data-id="${p.id}" style="padding:10px;margin-bottom:4px;cursor:pointer;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                  <div>
+                    <span style="font-size:0.88rem;font-weight:500;">${escapeHtml(p.title)}</span>
+                    <span style="font-size:0.72rem;color:var(--text-dim);margin-left:6px;">${doneSteps}/${totalSteps}步</span>
+                  </div>
+                  <span class="badge badge-${p.status}">${statusLabel(p.status)}</span>
+                </div>
+                <div style="margin-top:6px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;">
+                  <div style="height:100%;width:${totalSteps>0?Math.round(doneSteps/totalSteps*100):0}%;background:var(--accent);"></div>
+                </div>
               </div>
             `;
           }).join('')}
@@ -104,7 +114,7 @@ const TodayPage = {
         </div>
       ` : ''}
 
-      ${overdue.length === 0 && dueToday.length === 0 && inProgress.length === 0 && pending.length === 0 && Object.keys(parentMap).length === 0 ? `
+      ${overdue.length === 0 && dueToday.length === 0 && inProgress.length === 0 && pending.length === 0 && projects.length === 0 ? `
         <div class="empty-state">
           <p>今天没有待办事项</p>
           <button class="btn btn-primary" id="todayAddBtn">+ 新建记录</button>
@@ -122,6 +132,16 @@ const TodayPage = {
     });
     $('#todayAddBtn')?.addEventListener('click', () => {
       EntriesPage.showModal(null, () => this.render(container));
+    });
+
+    // Project card click → detail view
+    $$('.project-card', container).forEach(card => {
+      card.addEventListener('click', async () => {
+        try {
+          const data = await API.get(`/api/entries/project/${card.dataset.id}`);
+          this.showProjectDetail(data, () => this.render(container));
+        } catch (err) { showToast('错误：' + err.message); }
+      });
     });
 
     // Quick start workflow buttons
@@ -323,6 +343,99 @@ const TodayPage = {
     });
   }
 };
+
+  showProjectDetail(data, onUpdated) {
+    const { project, steps } = data;
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    const doneCount = steps.filter(s => s.status === 'done').length;
+    const totalPct = steps.length > 0 ? Math.round(doneCount / steps.length * 100) : 0;
+
+    modal.innerHTML = `
+      <div class="modal-backdrop"></div>
+      <div class="modal-content" style="max-width:560px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <h3 style="margin:0;">${escapeHtml(project.title)}</h3>
+          <span class="badge badge-${project.status}">${statusLabel(project.status)}</span>
+        </div>
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:4px;">
+            <span>项目进度</span><span>${doneCount}/${steps.length}步 (${totalPct}%)</span>
+          </div>
+          <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+            <div style="height:100%;width:${totalPct}%;background:var(--accent);border-radius:3px;"></div>
+          </div>
+        </div>
+
+        <div id="projectSteps" style="max-height:40vh;overflow-y:auto;">
+          ${steps.map((s, i) => `
+            <div class="project-step" data-id="${s.id}" style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
+              <input type="checkbox" class="step-check" ${s.status==='done'?'checked':''} style="width:18px;height:18px;flex-shrink:0;">
+              <input type="text" class="step-title" value="${escapeHtml(s.title)}" style="flex:1;background:transparent;border:none;color:var(--text);font-size:0.85rem;padding:4px;text-decoration:${s.status==='done'?'line-through':'none'};">
+              <button class="btn btn-sm btn-outline del-step-btn" data-id="${s.id}" style="font-size:0.65rem;padding:2px 6px;flex-shrink:0;">✕</button>
+            </div>
+          `).join('')}
+        </div>
+
+        <div style="display:flex;gap:6px;margin-top:10px;">
+          <input type="text" id="newStepInput" placeholder="添加新步骤..." style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:0.82rem;">
+          <button class="btn btn-primary btn-sm" id="addStepBtn">+ 添加</button>
+        </div>
+        <div class="btn-group" style="margin-top:12px;">
+          <button class="btn btn-outline btn-sm" id="closeProjectBtn">关闭</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const close = () => { modal.remove(); if (onUpdated) onUpdated(); };
+    modal.querySelector('.modal-backdrop').addEventListener('click', close);
+    $('#closeProjectBtn').addEventListener('click', close);
+
+    // Toggle step done
+    $$('.step-check', modal).forEach(cb => {
+      cb.addEventListener('change', async () => {
+        const id = parseInt(cb.closest('.project-step').dataset.id);
+        const status = cb.checked ? 'done' : 'pending';
+        try { await API.put(`/api/entries/${id}`, { status }); }
+        catch { cb.checked = !cb.checked; }
+      });
+    });
+
+    // Edit step title (save on blur)
+    $$('.step-title', modal).forEach(inp => {
+      inp.addEventListener('blur', async () => {
+        const id = parseInt(inp.closest('.project-step').dataset.id);
+        try { await API.put(`/api/entries/${id}`, { title: inp.value }); } catch {}
+      });
+    });
+
+    // Delete step
+    $$('.del-step-btn', modal).forEach(btn => {
+      btn.addEventListener('click', async () => {
+        try { await API.del(`/api/entries/${btn.dataset.id}`); btn.closest('.project-step').remove(); } catch {}
+      });
+    });
+
+    // Add new step
+    $('#addStepBtn').addEventListener('click', async () => {
+      const title = $('#newStepInput').value.trim();
+      if (!title) return;
+      try {
+        const res = await API.post('/api/entries', { title, status: 'pending', parent_id: project.id, category: project.category });
+        const div = document.createElement('div');
+        div.className = 'project-step';
+        div.dataset.id = res.id;
+        div.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);';
+        div.innerHTML = `<input type="checkbox" class="step-check" style="width:18px;height:18px;"><input type="text" class="step-title" value="${escapeHtml(title)}" style="flex:1;background:transparent;border:none;color:var(--text);font-size:0.85rem;padding:4px;"><button class="btn btn-sm btn-outline del-step-btn" data-id="${res.id}" style="font-size:0.65rem;padding:2px 6px;">✕</button>`;
+        $('#projectSteps').appendChild(div);
+        $('#newStepInput').value = '';
+        div.querySelector('.del-step-btn').addEventListener('click', async function() { try { await API.del(`/api/entries/${this.dataset.id}`); this.closest('.project-step').remove(); } catch {} });
+        div.querySelector('.step-check').addEventListener('change', async function() { try { await API.put(`/api/entries/${res.id}`, { status: this.checked ? 'done' : 'pending' }); } catch { this.checked = !this.checked; } });
+        div.querySelector('.step-title').addEventListener('blur', async function() { try { await API.put(`/api/entries/${res.id}`, { title: this.value }); } catch {} });
+      } catch (err) { showToast('错误：' + err.message); }
+    });
+  },
 
 function priorityLabel(p) {
   const map = { urgent: '紧急', high: '高', medium: '中', low: '低' };
