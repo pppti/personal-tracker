@@ -78,6 +78,30 @@ const SummaryPage = {
         </div>
       ` : ''}
 
+      ${r.entries && r.entries.length > 0 ? `
+        <div class="card">
+          <h4 style="font-size:0.85rem;color:var(--text-dim);margin-bottom:10px;">明细 (${r.entries.length}条)</h4>
+          ${r.entries.map(e => `
+            <div style="padding:10px 0;border-bottom:1px solid var(--border);">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                <div style="flex:1;">
+                  <span style="font-size:0.9rem;font-weight:500;">${escapeHtml(e.title)}</span>
+                  ${e.content ? `<div style="font-size:0.8rem;color:var(--text-dim);margin-top:2px;">${escapeHtml(e.content.slice(0, 200))}${e.content.length>200?'...':''}</div>` : ''}
+                  <div style="font-size:0.75rem;color:var(--text-dim);margin-top:4px;">
+                    ${e.category ? `<span>${escapeHtml(e.category)}</span> &middot; ` : ''}
+                    ${e.deadline ? `<span>截止：${e.deadline}</span> &middot; ` : ''}
+                    ${e.priority ? `<span class="badge badge-${e.priority}" style="font-size:0.65rem;">${e.priority}</span> &middot; ` : ''}
+                    ${e.progress > 0 ? `<span>进度：${e.progress}%</span> &middot; ` : ''}
+                    <span>${formatDate(e.created_at)}</span>
+                  </div>
+                </div>
+                <span class="badge badge-${e.status}">${statusLabel(e.status)}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
       <div class="btn-group">
         <button class="btn btn-primary" id="copySummaryBtn">复制文本</button>
         <button class="btn btn-outline" id="copyMdBtn">复制 Markdown</button>
