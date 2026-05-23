@@ -80,6 +80,23 @@ const TOOLS = [
         required: ['message', 'remind_at']
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_workflow',
+      description: '创建一个工作流程模板。当用户描述了一个工作流程、SOP、或者想让AI梳理一套工作步骤时使用。根据用户的描述梳理出结构化的步骤列表。',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: '流程名称，简洁概括' },
+          description: { type: 'string', description: '流程描述，说明这个流程的用途' },
+          category: { type: 'string', description: '分类，如：工作、个人、学习、开发、运维等' },
+          steps: { type: 'array', items: { type: 'string' }, description: '步骤列表，每步要具体可执行，5-8步为佳。如["接到需求", "分析可行性", "设计方案", "开发实现", "测试验证", "上线发布", "复盘总结"]' }
+        },
+        required: ['name', 'steps']
+      }
+    }
   }
 ];
 
@@ -106,6 +123,14 @@ function executeToolCall(name, args) {
     const row = db.prepare('SELECT * FROM reminders WHERE id = ?').get(result.lastInsertRowid);
     sendNotification('AI 已设置提醒', `${row.message}（${row.remind_at}）`);
     return { action: 'set_reminder', reminder: row };
+  }
+  if (name === 'create_workflow') {
+    const result = db.prepare(
+      'INSERT INTO workflows (name, description, category, steps) VALUES (?,?,?,?)'
+    ).run(args.name, args.description || '', args.category || '', JSON.stringify(args.steps || []));
+    const row = db.prepare('SELECT * FROM workflows WHERE id = ?').get(result.lastInsertRowid);
+    sendNotification('AI 已创建流程模板', `${row.name}（${args.steps.length}个步骤）`);
+    return { action: 'create_workflow', workflow: row };
   }
   return { action: 'unknown' };
 }
@@ -178,15 +203,15 @@ router.post('/chat/action', async (req, res) => {
         content: `你是一个智能工作助手。你可以帮用户：
 1. 创建/管理工作记录（create_entry）——自动推断分类、截止日期(deadline)、优先级(priority)、进度(progress)
 2. 设置提醒闹钟（set_reminder）——自动解析时间
-3. 查询和总结工作
+3. 创建流程模板（create_workflow）——用户描述工作流程后，梳理成结构化的步骤模板
+4. 查询和总结工作
 
 重要规则：
+- 用户说"帮我梳理XX流程""帮我创建XX模板""XX的标准步骤是什么"时，调用create_workflow创建流程模板
+- 流程步骤要具体可执行，5-8步为佳，按实际工作顺序排列
 - 用户提到截止日期/deadline/DDL时，必须设置deadline字段
 - 根据deadline自动判断优先级：已过期或今天→urgent，3天内→high，7天内→medium，其他→low
-- 已完成的任务progress=100，刚开始的5-10，有进展的30-60
 - 用户说"今天要做/需要跟进/别忘了"这类时，设置deadline为今天
-- 当用户描述了做过的/正在做的/计划做的事，主动调用create_entry
-- 当用户提到时间+要做某事，主动调用set_reminder
 - 每次回复最多进行3个操作
 - 操作完成后用简短中文告诉用户做了什么`
       },

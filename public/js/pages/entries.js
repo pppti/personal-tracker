@@ -23,6 +23,10 @@ const EntriesPage = {
         </select>
       </div>
       <button class="btn btn-primary btn-block" id="addEntryBtn">+ 新建记录</button>
+      <div style="display:flex;gap:8px;margin-top:6px;">
+        <button class="btn btn-outline btn-sm" id="exportEntriesBtn">导出 CSV</button>
+        <button class="btn btn-outline btn-sm" id="exportEntriesJsonBtn">导出 JSON</button>
+      </div>
       <div id="entriesList" style="margin-top:14px;"></div>
     `;
 
@@ -45,7 +49,33 @@ const EntriesPage = {
       this.showModal(null, () => this.refresh());
     });
 
+    $('#exportEntriesBtn').addEventListener('click', () => this.exportCSV());
+    $('#exportEntriesJsonBtn').addEventListener('click', () => this.exportJSON());
+
     this.renderList();
+  },
+
+  exportCSV() {
+    const head = '标题,内容,状态,分类,优先级,进度,截止日期,创建时间,更新时间';
+    const rows = this.entries.map(e =>
+      `"${(e.title||'').replace(/"/g,'""')}","${(e.content||'').replace(/"/g,'""')}","${statusLabel(e.status)}","${e.category||''}","${e.priority||''}",${e.progress||0},"${e.deadline||''}","${e.created_at||''}","${e.updated_at||''}"`
+    );
+    const csv = '﻿' + head + '\n' + rows.join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'entries.csv';
+    a.click(); URL.revokeObjectURL(url);
+    showToast('CSV 已导出');
+  },
+
+  exportJSON() {
+    const blob = new Blob([JSON.stringify(this.entries, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'entries.json';
+    a.click(); URL.revokeObjectURL(url);
+    showToast('JSON 已导出');
   },
 
   getFiltered() {
