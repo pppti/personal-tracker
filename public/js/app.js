@@ -113,6 +113,36 @@ const router = {
       const oldAuth = document.getElementById('auth-screen');
       if (oldAuth) oldAuth.remove();
     }
+    this.startReminderPoll();
+  },
+
+  startReminderPoll() {
+    if (this._polling) return;
+    this._polling = true;
+    this._notifiedIds = this._notifiedIds || new Set();
+    this._checkReminders();
+    this._pollInterval = setInterval(() => this._checkReminders(), 30000);
+  },
+
+  async _checkReminders() {
+    try {
+      if (!API.getToken()) return;
+      const reminders = await API.get('/api/reminders');
+      const now = new Date();
+      for (const r of reminders) {
+        if (r.notified || this._notifiedIds.has(r.id)) continue;
+        const remindTime = new Date(r.remind_at.replace(' ', 'T'));
+        if (remindTime <= now) {
+          this._notifiedIds.add(r.id);
+          // Browser notification
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('提醒', { body: r.message, icon: '/icon-192.png' });
+          }
+          // Toast
+          showToast('提醒：' + r.message);
+        }
+      }
+    } catch {}
   }
 };
 
