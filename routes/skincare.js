@@ -81,22 +81,24 @@ router.post('/products/import', async (req, res) => {
       return res.json({ need_text: true, message: '无法自动获取链接内容，请手动粘贴产品详情文字。' });
     }
 
+    // Deeper analysis: formula, natural ingredients, competitor positioning
     const analysis = await dsChat([
-      { role: 'system', content: '你是护肤品产品分析师。从用户提供的产品资料中提取结构化信息。无法确定的字段留空。只输出JSON。' },
-      { role: 'user', content: `从以下产品资料中提取信息：\n\n${sourceContent.slice(0, 4000)}\n\n返回JSON：\n{\n  "name": "产品全称",\n  "brand_positioning": "品牌定位（如：新锐国货、高端院线、成分党品牌等）",\n  "target_audience": "目标人群（年龄、肤质、消费力等）",\n  "core_ingredients": "核心成分（逗号分隔）",\n  "efficacy": "核心功效（简短）",\n  "price": "价格（含规格）",\n  "specs": "规格（如30ml/瓶）",\n  "usage_scenarios": "使用场景（逗号分隔，如：熬夜急救、换季修复）",\n  "talking_points": ["卖点话术1", "卖点话术2", "卖点话术3"]\n}\n只输出JSON。` }
-    ], 2048);
+      { role: 'system', content: '你是护肤品配方分析师。从用户提供的产品资料中深度提取信息，结合你的行业知识补充分析。无法确定的字段留空。只输出JSON。' },
+      { role: 'user', content: `从以下产品资料中深度分析：\n\n${sourceContent.slice(0, 5000)}\n\n返回JSON：\n{\n  "name": "产品全称",\n  "brand_positioning": "品牌定位",\n  "target_audience": "目标人群（年龄、肤质、消费力）",\n  "core_ingredients": "核心成分列表（逗号分隔）",\n  "efficacy": "核心功效",\n  "price": "价格",\n  "specs": "规格",\n  "usage_scenarios": "使用场景",\n  "is_natural": "天然成分分析：成分表中有哪些天然植萃成分？是否无香精/无酒精/无防腐剂？是否适合敏感肌？（2-3句）",\n  "formula_analysis": "配方分析：防腐体系、增稠体系、功效成分浓度推测、渗透技术、稳定性等（3-5句）",\n  "competitor_diff": "与市面上同类竞品的差异点分析：成分差异、技术差异、价格带差异、定位差异（3-5句）",\n  "talking_points": ["卖点话术1从成分角度", "卖点话术2从技术角度", "卖点话术3从体验角度", "卖点话术4从效果角度", "卖点话术5从性价比角度", "卖点话术6从人群痛点角度"]\n}\n只输出JSON。` }
+    ], 4096);
 
     const jsonMatch = analysis.match(/\{[\s\S]*\}/);
     const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
     if (!parsed.name) parsed.name = '未命名产品';
 
-    // Save product
+    // Save product with deep analysis fields
     const result = db.prepare(
-      'INSERT INTO skincare_products (name,brand_positioning,target_audience,core_ingredients,efficacy,price,specs,usage_scenarios) VALUES (?,?,?,?,?,?,?,?)'
+      'INSERT INTO skincare_products (name,brand_positioning,target_audience,core_ingredients,efficacy,price,specs,usage_scenarios,is_natural,formula_analysis,competitor_diff) VALUES (?,?,?,?,?,?,?,?,?,?,?)'
     ).run(
       parsed.name, parsed.brand_positioning||'', parsed.target_audience||'',
       parsed.core_ingredients||'', parsed.efficacy||'', parsed.price||'',
-      parsed.specs||'', parsed.usage_scenarios||''
+      parsed.specs||'', parsed.usage_scenarios||'',
+      parsed.is_natural||'', parsed.formula_analysis||'', parsed.competitor_diff||''
     );
 
     // Save talking points
@@ -113,14 +115,59 @@ router.post('/products/import', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Competitor analysis: compare product vs competitor knowledge materials
+router.post('/products/:id/competitor-analysis', async (req, res) => {
+  try {
+    const product = db.prepare('SELECT * FROM skincare_products WHERE id = ?').get(req.params.id);
+    if (!product) return res.status(404).json({ error: '产品不存在' });
+    const points = db.prepare('SELECT * FROM product_talking_points WHERE product_id = ?').all(req.params.id);
+
+    // Get competitor-related knowledge materials
+    const competitors = db.prepare("SELECT * FROM knowledge_materials WHERE category = '竞品分析' OR tags LIKE '%竞品%' ORDER BY created_at DESC LIMIT 10").all();
+
+    const productInfo = `## 我的产品\n- 名称：${product.name}\n- 定位：${product.brand_positioning||''}\n- 成分：${product.core_ingredients||''}\n- 功效：${product.efficacy||''}\n- 价格：${product.price||''}\n- 天然分析：${product.is_natural||''}\n- 配方分析：${product.formula_analysis||''}\n- 已有差异：${product.competitor_diff||''}\n- 现有话术：${points.map(p=>p.content).join(' | ')}`;
+
+    const competitorInfo = competitors.length > 0
+      ? '## 竞品素材\n' + competitors.map(c => `- ${c.title}：${(c.content||'').slice(0, 300)}`).join('\n')
+      : '暂无竞品素材（建议先去知识库添加竞品分析）';
+
+    const result = await dsChat([
+      { role: 'system', content: '你是护肤品竞品分析专家。通过对比自家产品和竞品信息，挖掘出独特卖点和差异化优势。输出JSON。' },
+      { role: 'user', content: `${productInfo}\n\n${competitorInfo}\n\n请深度分析，返回JSON：\n{\n  "unique_advantages": ["独特优势1", "独特优势2", "独特优势3"],\n  "differentiation_analysis": "差异化分析总结（3-5句，包含成分差异、技术差异、价格带差异、目标人群差异）",\n  "new_talking_points": ["基于差异化的新卖点1", "新卖点2", "新卖点3", "新卖点4"],\n  "recommended_angles": ["建议的脚本切入角度1", "切入角度2"],\n  "competitor_gaps": "竞品的弱点或空白点（2-3句）"\n}\n只输出JSON。` }
+    ], 4096);
+
+    const jsonMatch = result.match(/\{[\s\S]*\}/);
+    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+
+    // Update product competitor_diff if enhanced
+    if (parsed.differentiation_analysis) {
+      const newDiff = [product.competitor_diff, parsed.differentiation_analysis].filter(Boolean).join('\n\n---\n竞品挖掘分析：\n');
+      db.prepare('UPDATE skincare_products SET competitor_diff=?, updated_at=? WHERE id=?').run(
+        newDiff, new Date().toISOString().replace('T',' ').slice(0,19), req.params.id
+      );
+    }
+
+    // Save new talking points
+    const newPoints = parsed.new_talking_points || [];
+    for (const tp of newPoints) {
+      if (tp) {
+        db.prepare('INSERT INTO product_talking_points (product_id,point_type,content) VALUES (?,?,?)').run(req.params.id, '竞品挖掘', tp);
+      }
+    }
+
+    const updatedPoints = db.prepare('SELECT * FROM product_talking_points WHERE product_id = ?').all(req.params.id);
+    res.json({ ...parsed, talking_points: updatedPoints });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.put('/products/:id', (req, res) => {
   try {
     const existing = db.prepare('SELECT * FROM skincare_products WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: '产品不存在' });
     const f = { ...existing, ...req.body, updated_at: new Date().toISOString().replace('T',' ').slice(0,19) };
     db.prepare(
-      'UPDATE skincare_products SET name=?,brand_positioning=?,target_audience=?,core_ingredients=?,efficacy=?,price=?,specs=?,usage_scenarios=?,updated_at=? WHERE id=?'
-    ).run(f.name,f.brand_positioning,f.target_audience,f.core_ingredients,f.efficacy,f.price,f.specs,f.usage_scenarios,f.updated_at,req.params.id);
+      'UPDATE skincare_products SET name=?,brand_positioning=?,target_audience=?,core_ingredients=?,efficacy=?,price=?,specs=?,usage_scenarios=?,is_natural=?,formula_analysis=?,competitor_diff=?,updated_at=? WHERE id=?'
+    ).run(f.name,f.brand_positioning,f.target_audience,f.core_ingredients,f.efficacy,f.price,f.specs,f.usage_scenarios,f.is_natural||'',f.formula_analysis||'',f.competitor_diff||'',f.updated_at,req.params.id);
     res.json(db.prepare('SELECT * FROM skincare_products WHERE id = ?').get(req.params.id));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -408,7 +455,7 @@ router.post('/scripts/generate', async (req, res) => {
     // Build context for AI
     let contextParts = [];
     if (product) {
-      contextParts.push(`## 产品信息\n- 名称：${product.name}\n- 品牌定位：${product.brand_positioning || ''}\n- 目标人群：${product.target_audience || ''}\n- 核心成分：${product.core_ingredients || ''}\n- 功效：${product.efficacy || ''}\n- 价格：${product.price || ''}\n- 使用场景：${product.usage_scenarios || ''}`);
+      contextParts.push(`## 产品信息\n- 名称：${product.name}\n- 品牌定位：${product.brand_positioning || ''}\n- 目标人群：${product.target_audience || ''}\n- 核心成分：${product.core_ingredients || ''}\n- 功效：${product.efficacy || ''}\n- 价格：${product.price || ''}\n- 使用场景：${product.usage_scenarios || ''}\n- 天然成分分析：${product.is_natural || ''}\n- 配方分析：${product.formula_analysis || ''}\n- 竞品差异：${product.competitor_diff || ''}`);
       if (points.length > 0) {
         contextParts.push(`## 产品话术\n${points.map(p => `- [${p.point_type}] ${p.content}`).join('\n')}`);
       }

@@ -74,6 +74,9 @@ db.exec(`
     price TEXT DEFAULT '',
     specs TEXT DEFAULT '',
     usage_scenarios TEXT DEFAULT '',
+    is_natural TEXT DEFAULT '',
+    formula_analysis TEXT DEFAULT '',
+    competitor_diff TEXT DEFAULT '',
     created_at TEXT DEFAULT (datetime('now','localtime')),
     updated_at TEXT DEFAULT (datetime('now','localtime'))
   );
@@ -182,6 +185,9 @@ if (tplCount === 0) {
 try { db.exec('ALTER TABLE skincare_scripts ADD COLUMN word_count INTEGER DEFAULT 200'); } catch {}
 try { db.exec('ALTER TABLE skincare_scripts ADD COLUMN theme_direction TEXT DEFAULT \'\''); } catch {}
 try { db.exec('ALTER TABLE skincare_scripts ADD COLUMN custom_notes TEXT DEFAULT \'\''); } catch {}
+try { db.exec('ALTER TABLE skincare_products ADD COLUMN is_natural TEXT DEFAULT \'\''); } catch {}
+try { db.exec('ALTER TABLE skincare_products ADD COLUMN formula_analysis TEXT DEFAULT \'\''); } catch {}
+try { db.exec('ALTER TABLE skincare_products ADD COLUMN competitor_diff TEXT DEFAULT \'\''); } catch {}
 try { db.exec('ALTER TABLE entries ADD COLUMN deadline TEXT'); } catch {}
 try { db.exec('ALTER TABLE entries ADD COLUMN priority TEXT DEFAULT \'medium\''); } catch {}
 try { db.exec('ALTER TABLE entries ADD COLUMN progress INTEGER DEFAULT 0'); } catch {}

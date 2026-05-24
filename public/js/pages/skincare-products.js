@@ -120,6 +120,15 @@ const SkincareProductsPage = {
 
         ${isEdit ? `
         <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:14px;">
+          <h4 style="font-size:0.9rem;margin-bottom:8px;color:var(--text-dim);">深度分析（AI 生成）</h4>
+          <div class="form-group"><label>天然成分分析</label><textarea id="prodNatural" rows="2" placeholder="AI 导入产品时自动填充">${escapeHtml(product.is_natural||'')}</textarea></div>
+          <div class="form-group"><label>配方分析</label><textarea id="prodFormula" rows="3" placeholder="AI 导入产品时自动填充">${escapeHtml(product.formula_analysis||'')}</textarea></div>
+          <div class="form-group"><label>竞品差异</label><textarea id="prodDiff" rows="3" placeholder="AI 导入产品时自动填充">${escapeHtml(product.competitor_diff||'')}</textarea></div>
+          <button class="btn btn-sm btn-outline" id="competitorBtn" style="width:100%;">竞品挖掘 — AI 对比知识库竞品素材，找独特卖点</button>
+          <div id="competitorResult" style="margin-top:8px;"></div>
+        </div>
+
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:14px;">
           <h4 style="font-size:0.9rem;margin-bottom:8px;color:var(--text-dim);">话术库</h4>
           <div id="tpList">
             ${talkingPoints.map(tp => `
@@ -160,7 +169,10 @@ const SkincareProductsPage = {
       efficacy: modal.querySelector('#prodEff').value,
       price: modal.querySelector('#prodPrice').value,
       specs: modal.querySelector('#prodSpecs').value,
-      usage_scenarios: modal.querySelector('#prodScene').value
+      usage_scenarios: modal.querySelector('#prodScene').value,
+      is_natural: isEdit ? modal.querySelector('#prodNatural').value : '',
+      formula_analysis: isEdit ? modal.querySelector('#prodFormula').value : '',
+      competitor_diff: isEdit ? modal.querySelector('#prodDiff').value : ''
     });
 
     modal.querySelector('#saveProdBtn').addEventListener('click', async () => {
@@ -177,6 +189,43 @@ const SkincareProductsPage = {
     });
 
     if (isEdit) {
+      // Competitor analysis button
+      modal.querySelector('#competitorBtn').addEventListener('click', async () => {
+        const btn = modal.querySelector('#competitorBtn');
+        btn.disabled = true; btn.textContent = 'AI 分析中...';
+        try {
+          const result = await API.post(`/api/skincare/products/${product.id}/competitor-analysis`);
+          const r = modal.querySelector('#competitorResult');
+          r.innerHTML = `
+            <div class="card" style="border-left:3px solid var(--accent);margin-top:8px;">
+              <h4 style="font-size:0.85rem;color:var(--accent);">竞品挖掘完成</h4>
+              ${result.differentiation_analysis ? `<p style="font-size:0.82rem;margin-top:4px;"><strong>差异分析：</strong>${escapeHtml(result.differentiation_analysis)}</p>` : ''}
+              ${result.unique_advantages ? `<div style="font-size:0.82rem;margin-top:4px;"><strong>独特优势：</strong>${result.unique_advantages.map(a => '<br>• '+escapeHtml(a)).join('')}</div>` : ''}
+              ${result.new_talking_points ? `<div style="font-size:0.82rem;margin-top:4px;"><strong>新话术：</strong>${result.new_talking_points.map(a => '<br>• '+escapeHtml(a)).join('')}</div>` : ''}
+              ${result.competitor_gaps ? `<p style="font-size:0.82rem;margin-top:4px;"><strong>竞品弱点：</strong>${escapeHtml(result.competitor_gaps)}</p>` : ''}
+              ${result.recommended_angles ? `<div style="font-size:0.82rem;margin-top:4px;"><strong>建议切入角度：</strong>${result.recommended_angles.map(a => '<br>• '+escapeHtml(a)).join('')}</div>` : ''}
+            </div>
+          `;
+          // Refresh talking points
+          const tpList = modal.querySelector('#tpList');
+          if (tpList && result.talking_points) {
+            tpList.innerHTML = result.talking_points.map(tp => `
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+                <span class="badge badge-${tp.point_type==='竞品挖掘'?'high':'in_progress'}" style="white-space:nowrap;">${escapeHtml(tp.point_type)}</span>
+                <span style="flex:1;font-size:0.85rem;">${escapeHtml(tp.content)}</span>
+                <button class="btn btn-sm btn-outline del-tp" data-id="${tp.id}">×</button>
+              </div>
+            `).join('');
+          }
+          // Update competitor_diff textarea
+          try {
+            const updated = await API.get(`/api/skincare/products/${product.id}`);
+            modal.querySelector('#prodDiff').value = updated.competitor_diff || '';
+          } catch {}
+        } catch (e) { modal.querySelector('#competitorResult').innerHTML = `<p style="color:var(--red);font-size:0.82rem;">${escapeHtml(e.message)}</p>`; }
+        btn.disabled = false; btn.textContent = '竞品挖掘 — AI 对比知识库竞品素材，找独特卖点';
+      });
+
       modal.querySelector('#delProdBtn').addEventListener('click', async () => {
         if (!confirm('确定删除该产品及其所有话术吗？')) return;
         await API.del(`/api/skincare/products/${product.id}`);
