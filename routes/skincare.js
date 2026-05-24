@@ -663,4 +663,113 @@ router.get('/dashboard', (_req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ────────────── BACKUP / RESTORE ──────────────
+router.get('/backup/export', (_req, res) => {
+  try {
+    const data = {
+      version: 1,
+      exported_at: new Date().toISOString(),
+      products: db.prepare('SELECT * FROM skincare_products').all(),
+      talking_points: db.prepare('SELECT * FROM product_talking_points').all(),
+      templates: db.prepare('SELECT * FROM script_templates').all(),
+      hotspots: db.prepare('SELECT * FROM hot_topics').all(),
+      knowledge: db.prepare('SELECT * FROM knowledge_materials').all(),
+      scripts: db.prepare('SELECT * FROM skincare_scripts').all(),
+      videos: db.prepare('SELECT * FROM video_records').all()
+    };
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename=skincare-backup-' + new Date().toISOString().slice(0,10) + '.json');
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/backup/import', (req, res) => {
+  try {
+    const data = req.body;
+    if (!data.version) return res.status(400).json({ error: '无效的备份文件' });
+
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    let counts = { products: 0, scripts: 0, videos: 0 };
+
+    // Restore products
+    if (data.products && Array.isArray(data.products)) {
+      for (const p of data.products) {
+        db.prepare('INSERT OR IGNORE INTO skincare_products (id,name,brand_positioning,target_audience,core_ingredients,efficacy,price,specs,usage_scenarios,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(
+          p.id, p.name, p.brand_positioning||'', p.target_audience||'', p.core_ingredients||'',
+          p.efficacy||'', p.price||'', p.specs||'', p.usage_scenarios||'',
+          p.created_at||now, p.updated_at||now
+        );
+        counts.products++;
+      }
+    }
+
+    // Restore talking points
+    if (data.talking_points && Array.isArray(data.talking_points)) {
+      for (const tp of data.talking_points) {
+        db.prepare('INSERT OR IGNORE INTO product_talking_points (id,product_id,point_type,content,created_at) VALUES (?,?,?,?,?)').run(
+          tp.id, tp.product_id, tp.point_type||'卖点', tp.content||'', tp.created_at||now
+        );
+      }
+    }
+
+    // Restore templates
+    if (data.templates && Array.isArray(data.templates)) {
+      for (const t of data.templates) {
+        db.prepare('INSERT OR IGNORE INTO script_templates (id,name,content_style,hook_template,body_template,cta_template,platform,created_at) VALUES (?,?,?,?,?,?,?,?)').run(
+          t.id, t.name, t.content_style||'痛点型', t.hook_template||'', t.body_template||'',
+          t.cta_template||'', t.platform||'通用', t.created_at||now
+        );
+      }
+    }
+
+    // Restore hotspots
+    if (data.hotspots && Array.isArray(data.hotspots)) {
+      for (const h of data.hotspots) {
+        db.prepare('INSERT OR IGNORE INTO hot_topics (id,title,source,heat_index,category,summary,analysis,relevance_score,is_saved,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)').run(
+          h.id, h.title, h.source||'', h.heat_index||0, h.category||'',
+          h.summary||'', h.analysis||'', h.relevance_score||0, h.is_saved||0, h.created_at||now
+        );
+      }
+    }
+
+    // Restore knowledge
+    if (data.knowledge && Array.isArray(data.knowledge)) {
+      for (const k of data.knowledge) {
+        db.prepare('INSERT OR IGNORE INTO knowledge_materials (id,title,category,content,source_url,tags,product_id,created_at) VALUES (?,?,?,?,?,?,?,?)').run(
+          k.id, k.title, k.category||'参考素材', k.content||'', k.source_url||'',
+          k.tags||'', k.product_id||null, k.created_at||now
+        );
+      }
+    }
+
+    // Restore scripts
+    if (data.scripts && Array.isArray(data.scripts)) {
+      for (const s of data.scripts) {
+        db.prepare('INSERT OR IGNORE INTO skincare_scripts (id,title,hot_topic_id,product_id,template_id,script_type,content_style,duration_sec,word_count,platform,theme_direction,custom_notes,content,storyboard,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(
+          s.id, s.title, s.hot_topic_id||null, s.product_id||null, s.template_id||null,
+          s.script_type||'口播脚本', s.content_style||'痛点型', s.duration_sec||30,
+          s.word_count||200, s.platform||'视频号', s.theme_direction||'',
+          s.custom_notes||'', s.content||'', s.storyboard||'', s.status||'draft',
+          s.created_at||now, s.updated_at||now
+        );
+        counts.scripts++;
+      }
+    }
+
+    // Restore videos
+    if (data.videos && Array.isArray(data.videos)) {
+      for (const v of data.videos) {
+        db.prepare('INSERT OR IGNORE INTO video_records (id,script_id,title,description,tags,publish_date,platform,views,likes,comments,shares,clicks,notes,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(
+          v.id, v.script_id||null, v.title, v.description||'', v.tags||'',
+          v.publish_date||null, v.platform||'视频号', v.views||0, v.likes||0,
+          v.comments||0, v.shares||0, v.clicks||0, v.notes||'', v.created_at||now
+        );
+        counts.videos++;
+      }
+    }
+
+    res.json({ ok: true, counts });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;

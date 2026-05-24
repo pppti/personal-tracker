@@ -91,9 +91,35 @@ function startScheduler() {
         ]);
       }
     }
-  });
 
-  console.log('[scheduler] Started - reminders + daily digest');
-}
+    // 3. Daily skincare backup at 20:00
+    const backupKey = '20:00';
+    if (now.hm === backupKey && !lastDailyPush[backupKey]) {
+      lastDailyPush[backupKey] = true;
+      try {
+        const backup = {
+          version: 1,
+          exported_at: new Date().toISOString(),
+          products: db.prepare('SELECT * FROM skincare_products').all(),
+          talking_points: db.prepare('SELECT * FROM product_talking_points').all(),
+          templates: db.prepare('SELECT * FROM script_templates').all(),
+          hotspots: db.prepare('SELECT * FROM hot_topics').all(),
+          knowledge: db.prepare('SELECT * FROM knowledge_materials').all(),
+          scripts: db.prepare('SELECT * FROM skincare_scripts').all(),
+          videos: db.prepare('SELECT * FROM video_records').all()
+        };
+        const json = JSON.stringify(backup);
+        const exists = db.prepare('SELECT value FROM settings WHERE key = ?').get('skincare_backup');
+        if (exists) {
+          db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(json, 'skincare_backup');
+        } else {
+          db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('skincare_backup', json);
+        }
+        console.log('[scheduler] Skincare backup completed at 20:00, size:', Math.round(json.length / 1024) + 'KB');
+      } catch (e) {
+        console.error('[scheduler] Backup failed:', e.message);
+      }
+    }
+  });
 
 module.exports = { startScheduler };

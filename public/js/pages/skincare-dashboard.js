@@ -113,7 +113,56 @@ const SkincareDashboardPage = {
             <button class="btn btn-outline btn-sm" data-nav="analytics">查看数据</button>
           </div>
         </div>
+
+        <div class="card" style="border-left:3px solid var(--accent);">
+          <h3 style="font-size:0.9rem;margin-bottom:4px;">数据备份</h3>
+          <p style="font-size:0.76rem;color:var(--text-dim);margin-bottom:8px;">每日 20:00 自动备份。部署前请先下载备份，部署后上传恢复。</p>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-sm btn-primary" id="downloadBackupBtn">下载备份</button>
+            <button class="btn btn-sm btn-outline" id="restoreBackupBtn">上传恢复</button>
+            <input type="file" id="restoreFileInput" accept=".json" style="display:none;">
+          </div>
+          <div id="restoreResult" style="margin-top:8px;"></div>
+        </div>
       `;
+
+      // Backup handlers
+      const downloadBtn = $('#downloadBackupBtn');
+      const restoreBtn = $('#restoreBackupBtn');
+      const fileInput = $('#restoreFileInput');
+
+      downloadBtn.addEventListener('click', async () => {
+        try {
+          const data = await API.get('/api/skincare/backup/export');
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'skincare-backup-' + new Date().toISOString().slice(0,10) + '.json';
+          a.click();
+          URL.revokeObjectURL(url);
+          showToast('备份已下载');
+        } catch (e) { showToast('下载失败: ' + e.message); }
+      });
+
+      restoreBtn.addEventListener('click', () => fileInput.click());
+
+      fileInput.addEventListener('change', async () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          const data = JSON.parse(text);
+          const result = await API.post('/api/skincare/backup/import', data);
+          const r = $('#restoreResult');
+          r.innerHTML = `<p style="color:var(--green);font-size:0.82rem;">恢复成功：${result.counts.products}产品, ${result.counts.scripts}脚本, ${result.counts.videos}视频</p>`;
+          showToast('数据已恢复');
+          this.render(this.container);
+        } catch (e) {
+          $('#restoreResult').innerHTML = `<p style="color:var(--red);font-size:0.82rem;">恢复失败：${escapeHtml(e.message)}</p>`;
+        }
+        fileInput.value = '';
+      });
 
       // Navigation handlers
       container.querySelectorAll('[data-nav]').forEach(el => {
