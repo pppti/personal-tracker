@@ -83,8 +83,8 @@ router.post('/products/import', async (req, res) => {
 
     // Deeper analysis: formula, natural ingredients, competitor positioning
     const analysis = await dsChat([
-      { role: 'system', content: '你是护肤品配方分析师。从用户提供的产品资料中深度提取信息，结合你的行业知识补充分析。无法确定的字段留空。只输出JSON。' },
-      { role: 'user', content: `从以下产品资料中深度分析：\n\n${sourceContent.slice(0, 5000)}\n\n返回JSON：\n{\n  "name": "产品全称",\n  "brand_positioning": "品牌定位",\n  "target_audience": "目标人群（年龄、肤质、消费力）",\n  "core_ingredients": "核心成分列表（逗号分隔）",\n  "efficacy": "核心功效",\n  "price": "价格",\n  "specs": "规格",\n  "usage_scenarios": "使用场景",\n  "is_natural": "天然成分分析：成分表中有哪些天然植萃成分？是否无香精/无酒精/无防腐剂？是否适合敏感肌？（2-3句）",\n  "formula_analysis": "配方分析：防腐体系、增稠体系、功效成分浓度推测、渗透技术、稳定性等（3-5句）",\n  "competitor_diff": "与市面上同类竞品的差异点分析：成分差异、技术差异、价格带差异、定位差异（3-5句）",\n  "talking_points": ["卖点话术1从成分角度", "卖点话术2从技术角度", "卖点话术3从体验角度", "卖点话术4从效果角度", "卖点话术5从性价比角度", "卖点话术6从人群痛点角度"]\n}\n只输出JSON。` }
+      { role: 'system', content: '你是护肤品销售文案专家。你的任务是帮用户把产品卖出去。从产品资料中提取一切可以用来打动消费者、促成下单的信息。所有分析都要站在"怎么卖"的角度，任何看似普通的信息都要转化成卖点。无法确定的字段根据行业经验合理推测。只输出JSON。' },
+      { role: 'user', content: `从以下产品资料中提取可用于推广销售的信息：\n\n${sourceContent.slice(0, 5000)}\n\n返回JSON：\n{\n  "name": "产品全称（要有吸引力）",\n  "brand_positioning": "品牌定位（用消费者能get到的语言）",\n  "target_audience": "目标人群（越具体越好，方便精准投放）",\n  "core_ingredients": "核心成分（突出明星成分，附带一句话卖点）",\n  "efficacy": "核心功效（用消费者痛点语言表达）",\n  "price": "价格（如果有性价比优势要强调）",\n  "specs": "规格",\n  "usage_scenarios": "使用场景（场景越具体越能触发购买）",\n  "is_natural": "天然/安全卖点：这个产品在成分安全、温和、天然方面有什么让消费者放心的卖点？怎么打消敏感肌/宝妈/成分党的顾虑？（2-3句，纯销售角度）",\n  "formula_analysis": "配方亮点：这个配方里有什么技术壁垒、专利成分、浓度优势可以被拿来做文章？怎么让消费者觉得这个配方比别人强？（3-5句，纯销售角度，不讲缺点）",\n  "competitor_diff": "碾压竞品的理由：跟市面上同类产品比，这个产品有什么让消费者选它不选别人的理由？价格、成分、技术、体验、背书都可以说（3-5句，一定要有说服力）",\n  "talking_points": ["让消费者心动的卖点1", "直击痛点的卖点2", "制造紧迫感的卖点3", "建立信任的卖点4", "促成下单的卖点5", "制造差异化的卖点6"]\n}\n只输出JSON。` }
     ], 4096);
 
     const jsonMatch = analysis.match(/\{[\s\S]*\}/);
@@ -122,8 +122,8 @@ router.post('/products/:id/deep-analyze', async (req, res) => {
     if (!product) return res.status(404).json({ error: '产品不存在' });
 
     const analysis = await dsChat([
-      { role: 'system', content: '你是护肤品配方分析师。基于产品已有信息，深度分析配方、成分天然性、竞品差异。用专业知识补充分析。只输出JSON。' },
-      { role: 'user', content: `产品信息：\n- 名称：${product.name}\n- 定位：${product.brand_positioning||''}\n- 人群：${product.target_audience||''}\n- 成分：${product.core_ingredients||''}\n- 功效：${product.efficacy||''}\n- 价格：${product.price||''}\n- 场景：${product.usage_scenarios||''}\n\n请基于你的专业知识，深度分析：\n返回JSON：\n{\n  "is_natural": "天然成分分析（2-3句）",\n  "formula_analysis": "配方分析（3-5句）",\n  "competitor_diff": "与市面上同类竞品的差异点分析（3-5句）"\n}\n只输出JSON。` }
+      { role: 'system', content: '你是护肤品销售文案专家。你的唯一任务是帮用户找到产品的销售亮点，为写推广脚本提供弹药。绝不分析产品缺点，只挖掘可以用来打动消费者的角度。用专业知识把普通成分包装成卖点。只输出JSON。' },
+      { role: 'user', content: `产品信息：\n- 名称：${product.name}\n- 定位：${product.brand_positioning||''}\n- 人群：${product.target_audience||''}\n- 成分：${product.core_ingredients||''}\n- 功效：${product.efficacy||''}\n- 价格：${product.price||''}\n- 场景：${product.usage_scenarios||''}\n\n请从"怎么卖"的角度分析这个产品：\n返回JSON：\n{\n  "is_natural": "成分安全/天然方面的销售话术——怎么让消费者放心？怎么打消敏感肌/成分党顾虑？（2-3句，纯卖点视角）",\n  "formula_analysis": "配方亮点——这个配方有什么让消费者觉得值这个钱的技术或成分？有什么看不见的良心之处？浓度、工艺、专利都行（3-5句，往好里说）",\n  "competitor_diff": "碾压竞品的理由——为什么买它不买别人？从价格、成分、体验、技术各个角度找优势。如果信息不足，根据行业经验合理推断同类竞品的普遍情况来做对比（3-5句，要有说服力）"\n}\n只输出JSON。` }
     ], 2048);
 
     const jsonMatch = analysis.match(/\{[\s\S]*\}/);
@@ -156,8 +156,8 @@ router.post('/products/:id/competitor-analysis', async (req, res) => {
       : '暂无竞品素材（建议先去知识库添加竞品分析）';
 
     const result = await dsChat([
-      { role: 'system', content: '你是护肤品竞品分析专家。通过对比自家产品和竞品信息，挖掘出独特卖点和差异化优势。输出JSON。' },
-      { role: 'user', content: `${productInfo}\n\n${competitorInfo}\n\n请深度分析，返回JSON：\n{\n  "unique_advantages": ["独特优势1", "独特优势2", "独特优势3"],\n  "differentiation_analysis": "差异化分析总结（3-5句，包含成分差异、技术差异、价格带差异、目标人群差异）",\n  "new_talking_points": ["基于差异化的新卖点1", "新卖点2", "新卖点3", "新卖点4"],\n  "recommended_angles": ["建议的脚本切入角度1", "切入角度2"],\n  "competitor_gaps": "竞品的弱点或空白点（2-3句）"\n}\n只输出JSON。` }
+      { role: 'system', content: '你是护肤品销售竞争策略专家。你的任务是对比自家产品与竞品，找出一切可以说服消费者选你而不选竞品的理由。逢敌必亮剑，每个维度都要找到自家胜出的角度。对手的弱点就是你的卖点。只输出JSON。' },
+      { role: 'user', content: `${productInfo}\n\n${competitorInfo}\n\n请从竞争角度挖掘销售优势，返回JSON：\n{\n  "unique_advantages": ["为什么非买你不可的理由1", "理由2", "理由3"],\n  "differentiation_analysis": "差异化销售话术——从成分、技术、价格、体验、人群各个维度说明你的产品比竞品好在哪，让消费者看了想下单（4-6句，一定要有煽动力）",\n  "new_talking_points": ["碾压竞品的话术1", "话术2", "话术3", "话术4"],\n  "recommended_angles": ["适合拍成视频的销售角度1", "角度2", "角度3"],\n  "competitor_gaps": "竞品留给你的机会——他们在哪里做得不够好，你的产品正好填补了什么空白？（2-3句，这是你的黄金卖点）"\n}\n只输出JSON。` }
     ], 4096);
 
     const jsonMatch = result.match(/\{[\s\S]*\}/);
@@ -587,7 +587,7 @@ router.post('/scripts/generate', async (req, res) => {
       : `请生成一份通用的护肤品${type}，内容风格为${style}，时长约${dur}秒，约${wc}字左右，适配${plat}平台。语言口语化自然。${extraReqsText}`;
 
     const content = await dsChat([
-      { role: 'system', content: `你是护肤品短视频脚本专家。你擅长为中国短视频平台（抖音、视频号、小红书）撰写高转化率的护肤品脚本。你熟悉：痛点型、成分科普型、对比评测型、场景种草型等多种风格。脚本要求：口语化、有节奏感、埋钩子、自然融入产品卖点。每次输出直接给出脚本全文，不需要标记"开头/中间/结尾"。` },
+      { role: 'system', content: `你是护肤品带货短视频脚本专家，也是金牌销售。你的每一句话都是为了帮用户把产品卖出去。你写的是带货脚本，不是测评文章——不做客观分析，只做说服购买。核心原则：把功能翻译成好处、把成分翻译成效果、把价格翻译成省钱、把缺点翻译成独特设计。口语化、有节奏感、3秒内必须抓住人。每次输出直接给出脚本全文，不需要标记分段。` },
       { role: 'user', content: prompt }
     ], 4096);
 
@@ -768,7 +768,7 @@ router.post('/topics/suggest', async (req, res) => {
     const focusNote = focus ? `\n特别关注方向：${focus}` : '';
 
     const result = await dsChat([
-      { role: 'system', content: '你是护肤品短视频创意策划专家。基于用户的产品、热点和知识库，策划高转化率的选题方案。输出JSON。' },
+      { role: 'system', content: '你是护肤品带货视频创意策划专家。你的选题只有一个目的：帮用户把产品卖出去。每个选题都要有明确的销售转化路径，不是做科普涨粉，是带货成交。输出JSON。' },
       { role: 'user', content: `${ctx}\n\n请策划选题方案${focusNote}，返回JSON：\n{\n  "creative_topics": [\n    {\n      "topic": "选题标题",\n      "angle": "切入角度",\n      "style": "内容风格",\n      "hook": "建议的开头钩子一句话",\n      "structure": "建议的脚本结构（3-5步）",\n      "why": "为什么这个选题能火"\n    }\n  ],\n  "series_suggestion": "如果要做系列内容，建议的系列主题和结构（2-3句）",\n  "weekly_plan": ["周一选题", "周三选题", "周五选题"]\n}\n只输出JSON。` }
     ], 4096);
 
@@ -845,7 +845,7 @@ router.post('/analytics/report', async (req, res) => {
 
     // Ask AI for comprehensive report
     const report = await dsChat([
-      { role: 'system', content: '你是护肤品短视频运营分析专家。基于用户的视频数据、脚本库、产品线和热点素材，生成一份全面的复盘报告。报告要具体、可执行，不要泛泛而谈。只输出JSON。' },
+      { role: 'system', content: '你是护肤品带货短视频运营专家。复盘只有一个目标：找出什么内容能卖出更多货。分析数据不是为分析而分析，是为找到更高转化的内容策略。所有建议都要指向"怎么拍才能卖更多"。只输出JSON。' },
       { role: 'user', content: `${dataSummary}\n\n请生成复盘报告，返回JSON：\n{\n  "summary": {\n    "overview": "整体概况（2-3句）",\n    "total_score": "整体评分（1-10）及一句话理由",\n    "key_metrics": "关键数据解读（2-3句）"\n  },\n  "what_worked": [\n    {"point": "做得好的点", "data": "数据支撑", "keep": "是否建议继续"}\n  ],\n  "what_to_improve": [\n    {"point": "待改进点", "reason": "原因分析", "action": "具体改进建议"}\n  ],\n  "topic_suggestions": [\n    {"topic": "选题方向", "angle": "切入角度", "style": "建议风格", "reason": "为什么这个选题会有效（结合你的产品和热点）"}\n  ],\n  "next_week_plan": {\n    "focus": "下周重点方向",\n    "actions": ["具体行动1", "具体行动2", "具体行动3"]\n  }\n}\n\n只输出JSON。` }
     ], 4096);
 
