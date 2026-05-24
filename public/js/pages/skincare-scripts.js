@@ -129,6 +129,12 @@ const SkincareScriptsPage = {
               <option value="成分科普型">成分科普型</option>
               <option value="对比评测型">对比评测型</option>
               <option value="场景种草型">场景种草型</option>
+              <option value="悬念反转型">悬念反转型</option>
+              <option value="教程教学型">教程教学型</option>
+              <option value="创始人IP型">创始人IP型</option>
+              <option value="素人实测型">素人实测型</option>
+              <option value="情绪疗愈型">情绪疗愈型</option>
+              <option value="数据说服型">数据说服型</option>
             </select>
           </div>
           <div class="form-group"><label>时长</label>

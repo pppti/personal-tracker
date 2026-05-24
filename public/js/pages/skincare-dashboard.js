@@ -214,6 +214,7 @@ const SkincareDashboardPage = {
 
     container.innerHTML = `
       <button class="btn btn-primary btn-block" id="addTplBtn">+ 添加模板</button>
+      <button class="btn btn-outline btn-sm btn-block" id="analyzeTplBtn" style="margin-top:6px;background:var(--accent);color:#fff;border-color:var(--accent);">AI 分析视频 → 生成模板（丢链接/贴脚本）</button>
       <p style="font-size:0.78rem;color:var(--text-dim);text-align:center;margin-top:4px;">模板定义了脚本结构，AI 生成时可选参考</p>
       <div style="margin-top:14px;">
         ${this.templates.length === 0
@@ -233,12 +234,69 @@ const SkincareDashboardPage = {
     `;
 
     $('#addTplBtn').addEventListener('click', () => this.showTplModal());
+    $('#analyzeTplBtn').addEventListener('click', () => this.showTplAnalyzeModal());
 
     $$('.entry-card', container).forEach(el => {
       el.addEventListener('click', () => {
         const t = this.templates.find(x => x.id === parseInt(el.dataset.id));
         if (t) this.showTplModal(t);
       });
+    });
+  },
+
+  showTplAnalyzeModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.zIndex = '350';
+    modal.innerHTML = `
+      <div class="modal-backdrop"></div>
+      <div class="modal-content" style="max-width:600px;">
+        <h3>AI 分析视频 → 生成模板</h3>
+        <p style="font-size:0.85rem;color:var(--text-dim);margin-bottom:12px;">
+          粘贴视频链接或脚本内容，AI 分析内容结构（钩子、内容、CTA），自动提取可复用的脚本模板。
+        </p>
+        <div class="form-group"><label>视频/文章链接</label><input id="atUrl" placeholder="可选，粘贴参考链接"></div>
+        <div class="form-group"><label>脚本内容（链接无效时直接贴脚本）</label><textarea id="atText" rows="8" placeholder="粘贴完整的视频脚本/逐字稿..."></textarea></div>
+        <button class="btn btn-primary btn-block" id="doAnalyzeTplBtn">AI 分析并生成模板</button>
+        <div id="analyzeTplResult" style="margin-top:12px;"></div>
+        <button class="btn btn-outline btn-sm close-modal" style="margin-top:8px;">关闭</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    const close = () => modal.remove();
+    modal.querySelector('.modal-backdrop').addEventListener('click', close);
+    modal.querySelector('.close-modal').addEventListener('click', close);
+
+    modal.querySelector('#doAnalyzeTplBtn').addEventListener('click', async () => {
+      const url = modal.querySelector('#atUrl').value.trim();
+      const text = modal.querySelector('#atText').value.trim();
+      if (!url && !text) return showToast('请输入链接或粘贴脚本内容');
+      const btn = modal.querySelector('#doAnalyzeTplBtn');
+      btn.disabled = true; btn.textContent = 'AI 分析中...';
+      try {
+        const result = await API.post('/api/skincare/templates/analyze', { url, text });
+        const r = modal.querySelector('#analyzeTplResult');
+        if (result.need_text) {
+          r.innerHTML = `<p style="color:var(--yellow);font-size:0.85rem;">${escapeHtml(result.message)}</p>`;
+        } else {
+          r.innerHTML = `
+            <div class="card" style="border-left:3px solid var(--green);">
+              <h4 style="color:var(--green);">模板已生成并保存</h4>
+              <p><strong>名称：</strong>${escapeHtml(result.name||'')}</p>
+              <p><strong>风格：</strong>${escapeHtml(result.content_style||'')} | <strong>平台：</strong>${escapeHtml(result.platform||'')}</p>
+              ${result.analysis_summary ? `<p style="font-size:0.85rem;margin-top:4px;"><strong>结构分析：</strong>${escapeHtml(result.analysis_summary)}</p>` : ''}
+              <p style="font-size:0.82rem;margin-top:4px;"><strong>钩子：</strong>${escapeHtml(result.hook_template||'')}</p>
+              <p style="font-size:0.82rem;"><strong>内容：</strong>${escapeHtml(result.body_template||'')}</p>
+              <p style="font-size:0.82rem;"><strong>CTA：</strong>${escapeHtml(result.cta_template||'')}</p>
+            </div>
+          `;
+          close();
+          const content = this.container.querySelector('#skTabContent');
+          if (content) this.renderTemplatesView(content);
+          showToast('模板已自动保存');
+        }
+      } catch (e) { modal.querySelector('#analyzeTplResult').innerHTML = `<p style="color:var(--red);">${escapeHtml(e.message)}</p>`; }
+      btn.disabled = false; btn.textContent = 'AI 分析并生成模板';
     });
   },
 
@@ -254,11 +312,19 @@ const SkincareDashboardPage = {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
           <div class="form-group"><label>内容风格</label>
             <select id="tplStyle">
+              <option value="">自定义（下方输入）</option>
               <option value="痛点型" ${isEdit && tpl.content_style === '痛点型' ? 'selected' : ''}>痛点型</option>
               <option value="成分科普型" ${isEdit && tpl.content_style === '成分科普型' ? 'selected' : ''}>成分科普型</option>
               <option value="对比评测型" ${isEdit && tpl.content_style === '对比评测型' ? 'selected' : ''}>对比评测型</option>
               <option value="场景种草型" ${isEdit && tpl.content_style === '场景种草型' ? 'selected' : ''}>场景种草型</option>
+              <option value="悬念反转型" ${isEdit && tpl.content_style === '悬念反转型' ? 'selected' : ''}>悬念反转型</option>
+              <option value="教程教学型" ${isEdit && tpl.content_style === '教程教学型' ? 'selected' : ''}>教程教学型</option>
+              <option value="创始人IP型" ${isEdit && tpl.content_style === '创始人IP型' ? 'selected' : ''}>创始人IP型</option>
+              <option value="素人实测型" ${isEdit && tpl.content_style === '素人实测型' ? 'selected' : ''}>素人实测型</option>
+              <option value="情绪疗愈型" ${isEdit && tpl.content_style === '情绪疗愈型' ? 'selected' : ''}>情绪疗愈型</option>
+              <option value="数据说服型" ${isEdit && tpl.content_style === '数据说服型' ? 'selected' : ''}>数据说服型</option>
             </select>
+            <input id="tplStyleCustom" placeholder="或输入自定义风格" value="${isEdit && !['痛点型','成分科普型','对比评测型','场景种草型','悬念反转型','教程教学型','创始人IP型','素人实测型','情绪疗愈型','数据说服型'].includes(tpl.content_style) ? escapeHtml(tpl.content_style) : ''}" style="margin-top:4px;">
           </div>
           <div class="form-group"><label>适配平台</label>
             <select id="tplPlat">
@@ -286,7 +352,7 @@ const SkincareDashboardPage = {
     modal.querySelector('#saveTplBtn').addEventListener('click', async () => {
       const data = {
         name: modal.querySelector('#tplName').value,
-        content_style: modal.querySelector('#tplStyle').value,
+        content_style: modal.querySelector('#tplStyleCustom').value.trim() || modal.querySelector('#tplStyle').value,
         platform: modal.querySelector('#tplPlat').value,
         hook_template: modal.querySelector('#tplHook').value,
         body_template: modal.querySelector('#tplBody').value,

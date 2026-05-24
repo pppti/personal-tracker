@@ -390,6 +390,55 @@ router.delete('/templates/:id', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// AI analyze video/script → generate template
+router.post('/templates/analyze', async (req, res) => {
+  try {
+    const { url, text } = req.body;
+    if (!url && !text) return res.status(400).json({ error: '请输入视频链接或粘贴脚本内容' });
+
+    let sourceContent = text || '';
+    if (url && !sourceContent) {
+      try {
+        const fetchRes = await fetch(url, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SkincareBot/1.0)' },
+          signal: AbortSignal.timeout(8000)
+        });
+        if (fetchRes.ok) {
+          const html = await fetchRes.text();
+          sourceContent = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ')
+            .replace(/\s+/g, ' ').trim().slice(0, 5000);
+        }
+      } catch {}
+    }
+
+    if (!sourceContent) {
+      return res.json({ need_text: true, message: '无法自动获取链接内容，请手动粘贴视频文案或脚本。' });
+    }
+
+    const analysis = await dsChat([
+      { role: 'system', content: '你是短视频脚本结构分析师。分析视频/脚本的内容结构，提取可复用的模板。输出JSON。' },
+      { role: 'user', content: `分析以下视频脚本，提取结构模板：\n\n${sourceContent.slice(0, 4000)}\n\n返回JSON：\n{\n  "name": "模板名称（简短，如：XX类型口播结构）",\n  "content_style": "内容风格（如：痛点型/悬念反转型/教程教学型等）",\n  "platform": "建议平台（视频号/抖音/通用）",\n  "hook_template": "开头的钩子模板（用[]标注可变部分，如：[具体痛点场景描述]）",\n  "body_template": "中间内容模板（用[]标注可变部分）",\n  "cta_template": "结尾CTA模板（用[]标注可变部分）",\n  "analysis_summary": "结构分析总结（2-3句，说明这个视频为什么有效）"\n}\n只输出JSON。` }
+    ], 2048);
+
+    const jsonMatch = analysis.match(/\{[\s\S]*\}/);
+    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+
+    // Auto-save to templates
+    if (parsed.name) {
+      db.prepare(
+        'INSERT INTO script_templates (name,content_style,hook_template,body_template,cta_template,platform) VALUES (?,?,?,?,?,?)'
+      ).run(
+        parsed.name, parsed.content_style||'痛点型', parsed.hook_template||'',
+        parsed.body_template||'', parsed.cta_template||'', parsed.platform||'通用'
+      );
+    }
+
+    res.json(parsed);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ────────────── HOT TOPICS ──────────────
 router.get('/hotspots', (_req, res) => {
   try {
