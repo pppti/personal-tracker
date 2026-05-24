@@ -67,6 +67,7 @@ const SkincareVideosPage = {
             ${scripts.map(s => `<option value="${s.id}" ${isEdit && video.script_id === s.id ? 'selected' : ''}>${escapeHtml(s.title)}</option>`).join('')}
           </select>
         </div>
+        <div class="form-group"><label>视频链接</label><input id="vUrl" value="${isEdit ? escapeHtml(video.video_url||'') : ''}" placeholder="粘贴视频号/抖音链接，方便后期回顾分析"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div class="form-group"><label>发布日期</label><input id="vDate" type="date" value="${isEdit && video.publish_date ? video.publish_date.slice(0,10) : ''}"></div>
           <div class="form-group"><label>平台</label>
@@ -107,7 +108,8 @@ const SkincareVideosPage = {
         tags: modal.querySelector('#vTags').value,
         script_id: modal.querySelector('#vScript').value ? parseInt(modal.querySelector('#vScript').value) : null,
         publish_date: modal.querySelector('#vDate').value || null,
-        platform: modal.querySelector('#vPlat').value
+        platform: modal.querySelector('#vPlat').value,
+        video_url: modal.querySelector('#vUrl').value
       };
       if (!data.title) return showToast('请输入标题');
       if (isEdit) {
@@ -117,7 +119,8 @@ const SkincareVideosPage = {
           comments: parseInt(modal.querySelector('#vComments').value) || 0,
           shares: parseInt(modal.querySelector('#vShares').value) || 0,
           clicks: parseInt(modal.querySelector('#vClicks').value) || 0,
-          notes: modal.querySelector('#vNotes').value
+          notes: modal.querySelector('#vNotes').value,
+          video_url: modal.querySelector('#vUrl').value
         });
       }
       try {

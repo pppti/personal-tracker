@@ -624,11 +624,11 @@ router.get('/videos', (_req, res) => {
 
 router.post('/videos', (req, res) => {
   try {
-    const { script_id, title, description, tags, publish_date, platform } = req.body;
+    const { script_id, title, description, tags, publish_date, platform, video_url } = req.body;
     if (!title) return res.status(400).json({ error: '视频标题为必填' });
     const r = db.prepare(
-      'INSERT INTO video_records (script_id,title,description,tags,publish_date,platform) VALUES (?,?,?,?,?,?)'
-    ).run(script_id||null, title, description||'', tags||'', publish_date||null, platform||'视频号');
+      'INSERT INTO video_records (script_id,title,description,tags,publish_date,platform,video_url) VALUES (?,?,?,?,?,?,?)'
+    ).run(script_id||null, title, description||'', tags||'', publish_date||null, platform||'视频号', video_url||'');
     res.json(db.prepare('SELECT * FROM video_records WHERE id = ?').get(r.lastInsertRowid));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -639,9 +639,8 @@ router.put('/videos/:id', (req, res) => {
     if (!e) return res.status(404).json({ error: '视频记录不存在' });
     const f = { ...e, ...req.body };
     db.prepare(
-      'UPDATE video_records SET title=?,description=?,tags=?,publish_date=?,platform=?,views=?,likes=?,comments=?,shares=?,clicks=?,notes=? WHERE id=?'
-    ).run(f.title,f.description,f.tags,f.publish_date,f.platform,f.views,f.likes,f.comments,f.shares,f.clicks,f.notes||'',req.params.id);
-    res.json(db.prepare('SELECT * FROM video_records WHERE id = ?').get(req.params.id));
+      'UPDATE video_records SET title=?,description=?,tags=?,publish_date=?,platform=?,views=?,likes=?,comments=?,shares=?,clicks=?,video_url=?,notes=? WHERE id=?'
+    ).run(f.title,f.description,f.tags,f.publish_date,f.platform,f.views,f.likes,f.comments,f.shares,f.clicks,f.video_url||'',f.notes||'',req.params.id);
   } catch (er) { res.status(500).json({ error: er.message }); }
 });
 
@@ -649,6 +648,52 @@ router.delete('/videos/:id', (req, res) => {
   try {
     db.prepare('DELETE FROM video_records WHERE id = ?').run(req.params.id);
     res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ────────────── AI HOTSPOT DISCOVERY + TOPIC ENGINE ──────────────
+router.post('/hotspots/discover', async (req, res) => {
+  try {
+    const products = db.prepare('SELECT name, efficacy, core_ingredients, target_audience FROM skincare_products').all();
+    const existingHotspots = db.prepare('SELECT title, category FROM hot_topics ORDER BY created_at DESC LIMIT 10').all();
+    const productSummary = products.length > 0
+      ? products.map(p => `- ${p.name}（${p.efficacy||''}，人群：${p.target_audience||''}）`).join('\n')
+      : '暂无产品';
+
+    const result = await dsChat([
+      { role: 'system', content: '你是护肤品行业趋势分析师。基于当前中国市场护肤品短视频趋势，为用户发现可用的热门话题。输出JSON。' },
+      { role: 'user', content: `我的产品线：\n${productSummary}\n\n已有热点：\n${existingHotspots.map(h=>'- '+h.title).join('\n')||'无'}\n\n请基于2025-2026年中国护肤品市场趋势和社交媒体热点，推荐10个当前可以做视频的热门选题。返回JSON：\n{\n  "hotspots": [\n    {\n      "title": "热点话题（含hashtag形式）",\n      "category": "品类（抗衰/美白/防晒/敏感肌/成分等）",\n      "heat_reason": "为什么这个热度高（1-2句）",\n      "relevance": "跟我的产品的关联",\n      "script_angle": "建议的脚本切入角度",\n      "content_style": "建议的内容风格（痛点型/成分科普型/对比评测型/场景种草型）"\n    }\n  ],\n  "trend_summary": "当前护肤品短视频趋势总结（3-5句）"\n}\n只输出JSON。` }
+    ], 4096);
+
+    const jsonMatch = result.match(/\{[\s\S]*\}/);
+    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { hotspots: [] };
+    res.json(parsed);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/topics/suggest', async (req, res) => {
+  try {
+    const { focus } = req.body;
+    const products = db.prepare('SELECT * FROM skincare_products').all();
+    const hotspots = db.prepare('SELECT * FROM hot_topics ORDER BY created_at DESC LIMIT 10').all();
+    const knowledge = db.prepare('SELECT * FROM knowledge_materials ORDER BY created_at DESC LIMIT 10').all();
+
+    const ctx = [
+      products.length > 0 ? '## 产品\n'+products.map(p=>`- ${p.name}：${p.efficacy||''}（成分：${p.core_ingredients||''}，人群：${p.target_audience||''}，差异：${p.competitor_diff||''}）`).join('\n') : '',
+      hotspots.length > 0 ? '## 热点\n'+hotspots.map(h=>`- ${h.title}（${h.category||''}）`).join('\n') : '',
+      knowledge.length > 0 ? '## 知识库\n'+knowledge.map(k=>`- [${k.category}] ${k.title}`).join('\n') : ''
+    ].filter(Boolean).join('\n\n');
+
+    const focusNote = focus ? `\n特别关注方向：${focus}` : '';
+
+    const result = await dsChat([
+      { role: 'system', content: '你是护肤品短视频创意策划专家。基于用户的产品、热点和知识库，策划高转化率的选题方案。输出JSON。' },
+      { role: 'user', content: `${ctx}\n\n请策划选题方案${focusNote}，返回JSON：\n{\n  "creative_topics": [\n    {\n      "topic": "选题标题",\n      "angle": "切入角度",\n      "style": "内容风格",\n      "hook": "建议的开头钩子一句话",\n      "structure": "建议的脚本结构（3-5步）",\n      "why": "为什么这个选题能火"\n    }\n  ],\n  "series_suggestion": "如果要做系列内容，建议的系列主题和结构（2-3句）",\n  "weekly_plan": ["周一选题", "周三选题", "周五选题"]\n}\n只输出JSON。` }
+    ], 4096);
+
+    const jsonMatch = result.match(/\{[\s\S]*\}/);
+    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+    res.json(parsed);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

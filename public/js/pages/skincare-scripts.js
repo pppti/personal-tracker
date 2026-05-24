@@ -71,7 +71,17 @@ const SkincareScriptsPage = {
     });
   },
 
-  showGenerateForm() {
+  async showGenerateForm() {
+    // Reload latest data
+    try {
+      const [hotspots, templates] = await Promise.all([
+        API.get('/api/skincare/hotspots'),
+        API.get('/api/skincare/templates')
+      ]);
+      this.hotspots = hotspots;
+      this.templates = templates;
+    } catch {}
+
     const modal = document.createElement('div');
     modal.className = 'modal';
     modal.innerHTML = `

@@ -162,6 +162,7 @@ db.exec(`
     comments INTEGER DEFAULT 0,
     shares INTEGER DEFAULT 0,
     clicks INTEGER DEFAULT 0,
+    video_url TEXT DEFAULT '',
     notes TEXT DEFAULT '',
     created_at TEXT DEFAULT (datetime('now','localtime')),
     FOREIGN KEY (script_id) REFERENCES skincare_scripts(id) ON DELETE SET NULL
@@ -188,6 +189,7 @@ try { db.exec('ALTER TABLE skincare_scripts ADD COLUMN custom_notes TEXT DEFAULT
 try { db.exec('ALTER TABLE skincare_products ADD COLUMN is_natural TEXT DEFAULT \'\''); } catch {}
 try { db.exec('ALTER TABLE skincare_products ADD COLUMN formula_analysis TEXT DEFAULT \'\''); } catch {}
 try { db.exec('ALTER TABLE skincare_products ADD COLUMN competitor_diff TEXT DEFAULT \'\''); } catch {}
+try { db.exec('ALTER TABLE video_records ADD COLUMN video_url TEXT DEFAULT \'\''); } catch {}
 try { db.exec('ALTER TABLE entries ADD COLUMN deadline TEXT'); } catch {}
 try { db.exec('ALTER TABLE entries ADD COLUMN priority TEXT DEFAULT \'medium\''); } catch {}
 try { db.exec('ALTER TABLE entries ADD COLUMN progress INTEGER DEFAULT 0'); } catch {}

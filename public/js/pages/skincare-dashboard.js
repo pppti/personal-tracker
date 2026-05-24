@@ -11,6 +11,7 @@ const SkincareDashboardPage = {
     else if (tab === 'tab=analytics') this.currentTab = 'analytics';
     else if (tab === 'tab=templates') this.currentTab = 'templates';
     else if (tab === 'tab=knowledge') this.currentTab = 'knowledge';
+    else if (tab === 'tab=topics') this.currentTab = 'topics';
 
     this.renderTabs();
     await this.renderContent();
@@ -23,6 +24,7 @@ const SkincareDashboardPage = {
       { id: 'templates', label: '模板' },
       { id: 'knowledge', label: '知识库' },
       { id: 'hotspots', label: '热点台' },
+      { id: 'topics', label: 'AI选题' },
       { id: 'scripts', label: '脚本工坊' },
       { id: 'videos', label: '视频中心' },
       { id: 'analytics', label: '数据复盘' }
@@ -54,6 +56,7 @@ const SkincareDashboardPage = {
         case 'products': await SkincareProductsPage.render(content); break;
         case 'templates': await this.renderTemplatesView(content); break;
         case 'knowledge': await SkincareKnowledgePage.render(content); break;
+        case 'topics': await SkincareTopicsPage.render(content); break;
         case 'hotspots': await SkincareHotspotsPage.render(content); break;
         case 'scripts': await SkincareScriptsPage.render(content); break;
         case 'videos': await SkincareVideosPage.render(content); break;

@@ -20,6 +20,7 @@ const SkincareHotspotsPage = {
         <button class="btn btn-primary btn-sm" id="addHotspotBtn">+ 手动添加热点</button>
         <button class="btn btn-outline btn-sm" id="analyzeHotspotBtn">AI 分析热点</button>
         <button class="btn btn-outline btn-sm" id="importLinkBtn" style="background:var(--accent);color:#fff;border-color:var(--accent);">丢链接导入</button>
+        <button class="btn btn-primary btn-sm" id="discoverBtn">AI 发现热点</button>
       </div>
       <div id="hotspotList">
         ${this.hotspots.length === 0
@@ -46,6 +47,7 @@ const SkincareHotspotsPage = {
     $('#addHotspotBtn').addEventListener('click', () => this.showAddModal());
     $('#analyzeHotspotBtn').addEventListener('click', () => this.showAnalyzeModal());
     $('#importLinkBtn').addEventListener('click', () => this.showImportModal());
+    $('#discoverBtn').addEventListener('click', () => this.showDiscoverModal());
 
     $$('.entry-card', c).forEach(el => {
       el.addEventListener('click', () => {
@@ -147,6 +149,63 @@ const SkincareHotspotsPage = {
         }
       } catch (e) { modal.querySelector('#importResult').innerHTML = `<p style="color:var(--red);font-size:0.85rem;">${escapeHtml(e.message)}</p>`; }
       btn.disabled = false; btn.textContent = 'AI 解析';
+    });
+  },
+
+  showDiscoverModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.zIndex = '350';
+    modal.innerHTML = `
+      <div class="modal-backdrop"></div>
+      <div class="modal-content" style="max-width:700px;max-height:95vh;overflow-y:auto;">
+        <h3>AI 发现热点</h3>
+        <p style="font-size:0.85rem;color:var(--text-dim);margin-bottom:12px;">AI 基于当前护肤品市场趋势和你的产品线，推荐热门选题方向。点击下方开始。</p>
+        <button class="btn btn-primary btn-block" id="startDiscoverBtn">开始分析</button>
+        <div id="discoverResult" style="margin-top:12px;"></div>
+        <button class="btn btn-outline btn-sm close-modal" style="margin-top:8px;">关闭</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    const close = () => modal.remove();
+    modal.querySelector('.modal-backdrop').addEventListener('click', close);
+    modal.querySelector('.close-modal').addEventListener('click', close);
+
+    modal.querySelector('#startDiscoverBtn').addEventListener('click', async () => {
+      const btn = modal.querySelector('#startDiscoverBtn');
+      btn.disabled = true; btn.textContent = 'AI 分析中...';
+      try {
+        const result = await API.post('/api/skincare/hotspots/discover');
+        const r = modal.querySelector('#discoverResult');
+        r.innerHTML = `
+          ${result.trend_summary ? `<div class="card" style="border-left:3px solid var(--accent);margin-bottom:12px;"><strong>趋势总结</strong><p style="font-size:0.85rem;margin-top:4px;">${escapeHtml(result.trend_summary)}</p></div>` : ''}
+          ${(result.hotspots||[]).map((h, i) => `
+            <div class="card" style="border-left:3px solid var(--green);margin-bottom:8px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-weight:600;">${i+1}. ${escapeHtml(h.title)}</span>
+                <button class="btn btn-sm btn-primary save-hotspot" data-index="${i}">收录</button>
+              </div>
+              <p style="font-size:0.82rem;color:var(--text-dim);margin-top:4px;">品类：${escapeHtml(h.category||'')} | 风格：${escapeHtml(h.content_style||'')}</p>
+              <p style="font-size:0.82rem;margin-top:4px;">${escapeHtml(h.heat_reason||'')}</p>
+              <p style="font-size:0.82rem;color:var(--accent);margin-top:2px;">关联：${escapeHtml(h.relevance||'')}</p>
+              <p style="font-size:0.82rem;margin-top:2px;">切入角度：${escapeHtml(h.script_angle||'')}</p>
+            </div>
+          `).join('')}
+        `;
+        // Save hotspot buttons
+        r.querySelectorAll('.save-hotspot').forEach(b => {
+          b.addEventListener('click', async () => {
+            const h = result.hotspots[parseInt(b.dataset.index)];
+            await API.post('/api/skincare/hotspots', {
+              title: h.title, category: h.category, summary: h.heat_reason,
+              analysis: h.script_angle, heat_index: 70
+            });
+            b.textContent = '已收录'; b.disabled = true;
+            showToast('热点已收录');
+          });
+        });
+      } catch (e) { modal.querySelector('#discoverResult').innerHTML = `<p style="color:var(--red);">${escapeHtml(e.message)}</p>`; }
+      btn.disabled = false; btn.textContent = '开始分析';
     });
   },
 
