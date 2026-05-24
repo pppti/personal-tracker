@@ -54,6 +54,65 @@ router.post('/products', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// AI import product: paste URL/doc → AI extracts structured info → save + suggest talking points
+router.post('/products/import', async (req, res) => {
+  try {
+    const { url, text } = req.body;
+    if (!url && !text) return res.status(400).json({ error: '请输入链接或粘贴产品文档内容' });
+
+    let sourceContent = text || '';
+    if (url && !sourceContent) {
+      try {
+        const fetchRes = await fetch(url, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SkincareBot/1.0)' },
+          signal: AbortSignal.timeout(8000)
+        });
+        if (fetchRes.ok) {
+          const html = await fetchRes.text();
+          sourceContent = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ')
+            .replace(/\s+/g, ' ').trim().slice(0, 6000);
+        }
+      } catch {}
+    }
+
+    if (!sourceContent) {
+      return res.json({ need_text: true, message: '无法自动获取链接内容，请手动粘贴产品详情文字。' });
+    }
+
+    const analysis = await dsChat([
+      { role: 'system', content: '你是护肤品产品分析师。从用户提供的产品资料中提取结构化信息。无法确定的字段留空。只输出JSON。' },
+      { role: 'user', content: `从以下产品资料中提取信息：\n\n${sourceContent.slice(0, 4000)}\n\n返回JSON：\n{\n  "name": "产品全称",\n  "brand_positioning": "品牌定位（如：新锐国货、高端院线、成分党品牌等）",\n  "target_audience": "目标人群（年龄、肤质、消费力等）",\n  "core_ingredients": "核心成分（逗号分隔）",\n  "efficacy": "核心功效（简短）",\n  "price": "价格（含规格）",\n  "specs": "规格（如30ml/瓶）",\n  "usage_scenarios": "使用场景（逗号分隔，如：熬夜急救、换季修复）",\n  "talking_points": ["卖点话术1", "卖点话术2", "卖点话术3"]\n}\n只输出JSON。` }
+    ], 2048);
+
+    const jsonMatch = analysis.match(/\{[\s\S]*\}/);
+    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+    if (!parsed.name) parsed.name = '未命名产品';
+
+    // Save product
+    const result = db.prepare(
+      'INSERT INTO skincare_products (name,brand_positioning,target_audience,core_ingredients,efficacy,price,specs,usage_scenarios) VALUES (?,?,?,?,?,?,?,?)'
+    ).run(
+      parsed.name, parsed.brand_positioning||'', parsed.target_audience||'',
+      parsed.core_ingredients||'', parsed.efficacy||'', parsed.price||'',
+      parsed.specs||'', parsed.usage_scenarios||''
+    );
+
+    // Save talking points
+    const points = parsed.talking_points || [];
+    for (const tp of points) {
+      if (tp) {
+        db.prepare('INSERT INTO product_talking_points (product_id,point_type,content) VALUES (?,?,?)').run(result.lastInsertRowid, '卖点', tp);
+      }
+    }
+
+    const product = db.prepare('SELECT * FROM skincare_products WHERE id = ?').get(result.lastInsertRowid);
+    const savedPoints = db.prepare('SELECT * FROM product_talking_points WHERE product_id = ?').all(result.lastInsertRowid);
+    res.json({ ...product, talking_points: savedPoints, extracted_from: url || '文档' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.put('/products/:id', (req, res) => {
   try {
     const existing = db.prepare('SELECT * FROM skincare_products WHERE id = ?').get(req.params.id);

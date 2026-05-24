@@ -14,6 +14,7 @@ const SkincareProductsPage = {
         <div class="stat-card accent"><div class="stat-num">${this.products.length}</div><div class="stat-label">产品数</div></div>
       </div>
       <button class="btn btn-primary btn-block" id="addProductBtn">+ 添加产品</button>
+      <button class="btn btn-outline btn-sm btn-block" id="importProductBtn" style="margin-top:6px;background:var(--accent);color:#fff;border-color:var(--accent);">AI 导入产品（丢链接/贴文档）</button>
       <div id="productList" style="margin-top:14px;">
         ${this.products.length === 0
           ? '<div class="empty-state"><p>还没有产品，点击上方按钮添加第一个产品</p><p style="font-size:0.8rem;color:var(--text-dim);">产品库是 AI 写脚本的"弹药库"，越详细效果越好</p></div>'
@@ -33,11 +34,65 @@ const SkincareProductsPage = {
     `;
 
     $('#addProductBtn').addEventListener('click', () => this.showModal());
+    $('#importProductBtn').addEventListener('click', () => this.showImportModal());
     $$('.entry-card', c).forEach(el => {
       el.addEventListener('click', () => {
         const p = this.products.find(x => x.id === parseInt(el.dataset.id));
         if (p) this.showModal(p);
       });
+    });
+  },
+
+  showImportModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+      <div class="modal-backdrop"></div>
+      <div class="modal-content" style="max-width:600px;">
+        <h3>AI 导入产品</h3>
+        <p style="font-size:0.85rem;color:var(--text-dim);margin-bottom:12px;">
+          粘贴产品详情页链接或产品文档/介绍文案，AI 自动提取产品名、成分、功效、适用人群等并自动入库。
+        </p>
+        <div class="form-group"><label>产品链接（可选）</label><input id="impUrl" placeholder="商品详情页链接"></div>
+        <div class="form-group"><label>或直接粘贴产品介绍文案</label><textarea id="impText" rows="8" placeholder="把产品详情页、宣传文案、产品说明书等文字粘贴到这里..."></textarea></div>
+        <button class="btn btn-primary btn-block" id="doImportBtn">AI 分析并导入</button>
+        <div id="importResult" style="margin-top:12px;"></div>
+        <button class="btn btn-outline btn-sm close-modal" style="margin-top:8px;">关闭</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    const close = () => modal.remove();
+    modal.querySelector('.modal-backdrop').addEventListener('click', close);
+    modal.querySelector('.close-modal').addEventListener('click', close);
+
+    modal.querySelector('#doImportBtn').addEventListener('click', async () => {
+      const url = modal.querySelector('#impUrl').value.trim();
+      const text = modal.querySelector('#impText').value.trim();
+      if (!url && !text) return showToast('请输入链接或粘贴产品介绍');
+      const btn = modal.querySelector('#doImportBtn');
+      btn.disabled = true; btn.textContent = 'AI 分析中...';
+      try {
+        const result = await API.post('/api/skincare/products/import', { url, text });
+        const r = modal.querySelector('#importResult');
+        if (result.need_text) {
+          r.innerHTML = `<p style="color:var(--yellow);font-size:0.85rem;">${escapeHtml(result.message)}</p>`;
+        } else {
+          r.innerHTML = `
+            <div class="card" style="border-left:3px solid var(--green);">
+              <h4 style="color:var(--green);">产品已导入</h4>
+              <p style="font-size:0.85rem;"><strong>名称：</strong>${escapeHtml(result.name||'')}</p>
+              <p style="font-size:0.85rem;"><strong>功效：</strong>${escapeHtml(result.efficacy||'')}</p>
+              <p style="font-size:0.85rem;"><strong>成分：</strong>${escapeHtml(result.core_ingredients||'')}</p>
+              <p style="font-size:0.85rem;"><strong>人群：</strong>${escapeHtml(result.target_audience||'')}</p>
+              <p style="font-size:0.85rem;"><strong>话术：</strong>${(result.talking_points||[]).map(tp=>tp.content).join(' | ')||'无'}</p>
+            </div>
+          `;
+          close();
+          this.render(this.container);
+          showToast('产品已导入，话术已自动生成');
+        }
+      } catch (e) { modal.querySelector('#importResult').innerHTML = `<p style="color:var(--red);">${escapeHtml(e.message)}</p>`; }
+      btn.disabled = false; btn.textContent = 'AI 分析并导入';
     });
   },
 
