@@ -60,7 +60,7 @@ const router = {
       'ai-chat': 'AI 助手',
       summary: '汇总导出',
       reminders: '提醒闹钟',
-      skincare: '视频号创作',
+      skincare: '创作',
       settings: '设置'
     };
     $('#pageTitle').textContent = titles[page] || page;
