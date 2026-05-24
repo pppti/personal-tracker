@@ -11,10 +11,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Deploy to Railway
         run: |
-          RESP=$(curl -s -w "\n%{http_code}" -X POST https://backboard.railway.app/graphql/v2 \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+          RESPONSE=$(curl -s -X POST "https://backboard.railway.com/graphql/v2" \
+            -H "Authorization: Bearer ${RAILWAY_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d '{"query":"mutation deploy { deployService(input: { projectId: \"ba2cc751-c2dd-487b-b751-e59e643035f1\", serviceId: \"aa06f626-b47b-4eac-a5f9-680d02095f96\", environmentId: \"6d35a02a-1a53-430c-82ae-92ae7ee1c04b\" }) { id } }"}')
-          echo "Railway response: $RESP"
+            -d '{"query":"mutation{deployService(input:{projectId:\"ba2cc751-c2dd-487b-b751-e59e643035f1\",serviceId:\"aa06f626-b47b-4eac-a5f9-680d02095f96\",environmentId:\"6d35a02a-1a53-430c-82ae-92ae7ee1c04b\"}){id}}"}')
+          echo "Status: $?"
+          echo "Response: $RESPONSE"
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
