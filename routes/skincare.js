@@ -179,6 +179,23 @@ router.post('/products/:id/competitor-analysis', async (req, res) => {
       }
     }
 
+    // Auto-save to knowledge base
+    const kbContent = [
+      parsed.differentiation_analysis ? `## 差异分析\n${parsed.differentiation_analysis}` : '',
+      parsed.unique_advantages ? `## 独特优势\n${parsed.unique_advantages.map(a => '- '+a).join('\n')}` : '',
+      parsed.competitor_gaps ? `## 竞品弱点\n${parsed.competitor_gaps}` : '',
+      parsed.recommended_angles ? `## 建议切入角度\n${parsed.recommended_angles.map(a => '- '+a).join('\n')}` : ''
+    ].filter(Boolean).join('\n\n');
+    if (kbContent) {
+      db.prepare('INSERT INTO knowledge_materials (title,category,content,tags,product_id) VALUES (?,?,?,?,?)').run(
+        `竞品分析 - ${product.name}`,
+        '竞品分析',
+        kbContent,
+        'AI生成,竞品挖掘',
+        req.params.id
+      );
+    }
+
     const updatedPoints = db.prepare('SELECT * FROM product_talking_points WHERE product_id = ?').all(req.params.id);
     res.json({ ...parsed, talking_points: updatedPoints });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -667,6 +684,21 @@ router.post('/hotspots/discover', async (req, res) => {
 
     const jsonMatch = result.match(/\{[\s\S]*\}/);
     const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { hotspots: [] };
+
+    // Auto-save trend summary to knowledge base
+    if (parsed.trend_summary && parsed.hotspots && parsed.hotspots.length > 0) {
+      const knowledgeContent = [
+        `## 趋势总结\n${parsed.trend_summary}`,
+        `## 热门选题\n${parsed.hotspots.map((h,i) => `${i+1}. ${h.title}\n- 热度原因：${h.heat_reason}\n- 关联：${h.relevance}\n- 切入角度：${h.script_angle}\n- 建议风格：${h.content_style}`).join('\n\n')}`
+      ].join('\n\n');
+      db.prepare('INSERT INTO knowledge_materials (title,category,content,tags) VALUES (?,?,?,?)').run(
+        'AI热点发现 ' + new Date().toISOString().slice(0,10),
+        '爆款参考',
+        knowledgeContent,
+        'AI生成,热点,选题'
+      );
+    }
+
     res.json(parsed);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

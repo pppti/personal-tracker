@@ -154,7 +154,7 @@ const SkincareKnowledgePage = {
     });
   },
 
-  async showModal(material) {
+  catColor(cat) {
     const map = { '竞品分析': '#f44336', '行业知识': '#6c63ff', '用户反馈': '#4caf50', '爆款参考': '#ff9800', '话术灵感': '#03a9f4' };
     return map[cat] || '#888';
   },
