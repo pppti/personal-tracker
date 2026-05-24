@@ -115,6 +115,30 @@ router.post('/products/import', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Deep analyze existing product — fill missing analysis fields
+router.post('/products/:id/deep-analyze', async (req, res) => {
+  try {
+    const product = db.prepare('SELECT * FROM skincare_products WHERE id = ?').get(req.params.id);
+    if (!product) return res.status(404).json({ error: '产品不存在' });
+
+    const analysis = await dsChat([
+      { role: 'system', content: '你是护肤品配方分析师。基于产品已有信息，深度分析配方、成分天然性、竞品差异。用专业知识补充分析。只输出JSON。' },
+      { role: 'user', content: `产品信息：\n- 名称：${product.name}\n- 定位：${product.brand_positioning||''}\n- 人群：${product.target_audience||''}\n- 成分：${product.core_ingredients||''}\n- 功效：${product.efficacy||''}\n- 价格：${product.price||''}\n- 场景：${product.usage_scenarios||''}\n\n请基于你的专业知识，深度分析：\n返回JSON：\n{\n  "is_natural": "天然成分分析（2-3句）",\n  "formula_analysis": "配方分析（3-5句）",\n  "competitor_diff": "与市面上同类竞品的差异点分析（3-5句）"\n}\n只输出JSON。` }
+    ], 2048);
+
+    const jsonMatch = analysis.match(/\{[\s\S]*\}/);
+    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+    db.prepare('UPDATE skincare_products SET is_natural=?, formula_analysis=?, competitor_diff=?, updated_at=? WHERE id=?').run(
+      parsed.is_natural||'', parsed.formula_analysis||'', parsed.competitor_diff||'', now, req.params.id
+    );
+
+    const updated = db.prepare('SELECT * FROM skincare_products WHERE id = ?').get(req.params.id);
+    res.json(updated);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Competitor analysis: compare product vs competitor knowledge materials
 router.post('/products/:id/competitor-analysis', async (req, res) => {
   try {

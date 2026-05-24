@@ -124,7 +124,10 @@ const SkincareProductsPage = {
           <div class="form-group"><label>天然成分分析</label><textarea id="prodNatural" rows="2" placeholder="AI 导入产品时自动填充">${escapeHtml(product.is_natural||'')}</textarea></div>
           <div class="form-group"><label>配方分析</label><textarea id="prodFormula" rows="3" placeholder="AI 导入产品时自动填充">${escapeHtml(product.formula_analysis||'')}</textarea></div>
           <div class="form-group"><label>竞品差异</label><textarea id="prodDiff" rows="3" placeholder="AI 导入产品时自动填充">${escapeHtml(product.competitor_diff||'')}</textarea></div>
-          <button class="btn btn-sm btn-outline" id="competitorBtn" style="width:100%;">竞品挖掘 — AI 对比知识库竞品素材，找独特卖点</button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-sm btn-outline" id="deepAnalyzeBtn" style="flex:1;">AI 深度分析 — 自动补全配方/天然性/竞品差异</button>
+            <button class="btn btn-sm btn-outline" id="competitorBtn" style="flex:1;">竞品挖掘</button>
+          </div>
           <div id="competitorResult" style="margin-top:8px;"></div>
         </div>
 
@@ -189,6 +192,20 @@ const SkincareProductsPage = {
     });
 
     if (isEdit) {
+      // Deep analyze button
+      modal.querySelector('#deepAnalyzeBtn').addEventListener('click', async () => {
+        const btn = modal.querySelector('#deepAnalyzeBtn');
+        btn.disabled = true; btn.textContent = 'AI 分析中...';
+        try {
+          const updated = await API.post(`/api/skincare/products/${product.id}/deep-analyze`);
+          modal.querySelector('#prodNatural').value = updated.is_natural || '';
+          modal.querySelector('#prodFormula').value = updated.formula_analysis || '';
+          modal.querySelector('#prodDiff').value = updated.competitor_diff || '';
+          showToast('深度分析完成，字段已自动填充');
+        } catch (e) { showToast('分析失败: ' + e.message); }
+        btn.disabled = false; btn.textContent = 'AI 深度分析 — 自动补全配方/天然性/竞品差异';
+      });
+
       // Competitor analysis button
       modal.querySelector('#competitorBtn').addEventListener('click', async () => {
         const btn = modal.querySelector('#competitorBtn');
