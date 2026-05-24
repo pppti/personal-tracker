@@ -85,6 +85,13 @@ const SkincareScriptsPage = {
           </select>
         </div>
         <div class="form-group">
+          <label>选择卖点（可选，不选则全部使用）</label>
+          <div id="talkingPointCheckboxes" style="max-height:120px;overflow-y:auto;font-size:0.82rem;padding:4px 0;">
+            <span style="color:var(--text-dim);">选择产品后自动加载卖点...</span>
+          </div>
+        </div>
+
+        <div class="form-group">
           <label>关联热点（可选）</label>
           <select id="genHotspot">
             <option value="">不使用热点</option>
@@ -152,6 +159,30 @@ const SkincareScriptsPage = {
     modal.querySelector('.modal-backdrop').addEventListener('click', close);
     modal.querySelector('.close-modal').addEventListener('click', close);
 
+    // Load talking points when product changes
+    const tpContainer = modal.querySelector('#talkingPointCheckboxes');
+    modal.querySelector('#genProduct').addEventListener('change', async () => {
+      const pid = modal.querySelector('#genProduct').value;
+      if (!pid) { tpContainer.innerHTML = '<span style="color:var(--text-dim);">请先选择产品</span>'; return; }
+      try {
+        const data = await API.get(`/api/skincare/products/${pid}`);
+        const points = data.talking_points || [];
+        if (points.length === 0) {
+          tpContainer.innerHTML = '<span style="color:var(--text-dim);">该产品暂无卖点话术</span>';
+        } else {
+          tpContainer.innerHTML = points.map(tp => `
+            <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;">
+              <input type="checkbox" class="tp-checkbox" value="${tp.id}" checked style="accent-color:var(--accent);">
+              <span>${escapeHtml(tp.content)}</span>
+              <span style="color:var(--text-dim);font-size:0.72rem;">[${escapeHtml(tp.point_type)}]</span>
+            </label>
+          `).join('');
+        }
+      } catch { tpContainer.innerHTML = '<span style="color:var(--text-dim);">加载失败</span>'; }
+    });
+    // Trigger initial load
+    modal.querySelector('#genProduct').dispatchEvent(new Event('change'));
+
     modal.querySelector('#genScriptBtn').addEventListener('click', async () => {
       const btn = modal.querySelector('#genScriptBtn');
       btn.disabled = true; btn.textContent = '生成中...';
@@ -166,7 +197,8 @@ const SkincareScriptsPage = {
           word_count: parseInt(modal.querySelector('#genWords').value),
           platform: modal.querySelector('#genPlat').value,
           theme_direction: modal.querySelector('#genTheme').value,
-          custom_notes: modal.querySelector('#genNotes').value
+          custom_notes: modal.querySelector('#genNotes').value,
+          selected_point_ids: Array.from(modal.querySelectorAll('.tp-checkbox:checked')).map(cb => parseInt(cb.value))
         };
         const script = await API.post('/api/skincare/scripts/generate', data);
         const r = modal.querySelector('#genResult');

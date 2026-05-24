@@ -443,11 +443,15 @@ router.get('/scripts/:id', (req, res) => {
 
 router.post('/scripts/generate', async (req, res) => {
   try {
-    const { product_id, hot_topic_id, template_id, script_type, content_style, duration_sec, word_count, platform, theme_direction, custom_notes } = req.body;
+    const { product_id, hot_topic_id, template_id, script_type, content_style, duration_sec, word_count, platform, theme_direction, custom_notes, selected_point_ids } = req.body;
 
     // Gather context
     const product = product_id ? db.prepare('SELECT * FROM skincare_products WHERE id = ?').get(product_id) : null;
-    const points = product_id ? db.prepare('SELECT * FROM product_talking_points WHERE product_id = ?').all(product_id) : [];
+    let points = product_id ? db.prepare('SELECT * FROM product_talking_points WHERE product_id = ?').all(product_id) : [];
+    // Filter by selected talking points if specified
+    if (selected_point_ids && selected_point_ids.length > 0) {
+      points = points.filter(p => selected_point_ids.includes(p.id));
+    }
     const hotspot = hot_topic_id ? db.prepare('SELECT * FROM hot_topics WHERE id = ?').get(hot_topic_id) : null;
     const tpl = template_id ? db.prepare('SELECT * FROM script_templates WHERE id = ?').get(template_id) : null;
     const knowledge = db.prepare('SELECT * FROM knowledge_materials ORDER BY created_at DESC LIMIT 20').all();
