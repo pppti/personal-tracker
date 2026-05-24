@@ -120,6 +120,7 @@ const SkincareDashboardPage = {
           <div style="display:flex;gap:8px;">
             <button class="btn btn-sm btn-primary" id="downloadBackupBtn">下载备份</button>
             <button class="btn btn-sm btn-outline" id="restoreBackupBtn">上传恢复</button>
+            <button class="btn btn-sm btn-outline" id="cleanDataBtn" style="color:var(--red);border-color:var(--red);">清空数据</button>
             <input type="file" id="restoreFileInput" accept=".json" style="display:none;">
           </div>
           <div id="restoreResult" style="margin-top:8px;"></div>
@@ -162,6 +163,20 @@ const SkincareDashboardPage = {
           $('#restoreResult').innerHTML = `<p style="color:var(--red);font-size:0.82rem;">恢复失败：${escapeHtml(e.message)}</p>`;
         }
         fileInput.value = '';
+      });
+
+      // Cleanup handler
+      $('#cleanDataBtn').addEventListener('click', async () => {
+        if (!confirm('确定清空所有创作数据吗？（产品、知识库、热点、脚本、视频记录）\n\n建议先下载备份！')) return;
+        if (!confirm('再次确认：此操作不可撤销！')) return;
+        try {
+          const result = await API.post('/api/skincare/cleanup');
+          const r = $('#restoreResult');
+          const d = result.deleted;
+          r.innerHTML = `<p style="color:var(--yellow);font-size:0.82rem;">已清空：${d.skincare_products}产品, ${d.knowledge_materials}素材, ${d.hot_topics}热点, ${d.skincare_scripts}脚本, ${d.video_records}视频</p>`;
+          showToast('数据已清空');
+          this.render(this.container);
+        } catch (e) { showToast('清空失败: ' + e.message); }
       });
 
       // Navigation handlers

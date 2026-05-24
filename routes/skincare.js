@@ -722,6 +722,20 @@ router.get('/dashboard', (_req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ────────────── CLEANUP ──────────────
+router.post('/cleanup', (_req, res) => {
+  try {
+    const tables = ['video_records', 'skincare_scripts', 'knowledge_materials', 'hot_topics', 'product_talking_points', 'skincare_products'];
+    const counts = {};
+    for (const t of tables) {
+      const c = db.prepare('SELECT COUNT(*) as c FROM ' + t).get();
+      db.prepare('DELETE FROM ' + t).run();
+      counts[t] = c.c;
+    }
+    res.json({ ok: true, deleted: counts });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ────────────── BACKUP / RESTORE ──────────────
 router.get('/backup/export', (_req, res) => {
   try {
