@@ -122,4 +122,7 @@ function startScheduler() {
     }
   });
 
+  console.log('[scheduler] Started - reminders + daily digest + skincare backup');
+}
+
 module.exports = { startScheduler };
