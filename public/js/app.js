@@ -60,6 +60,7 @@ const router = {
       'ai-chat': 'AI 助手',
       summary: '汇总导出',
       reminders: '提醒闹钟',
+      skincare: '视频号创作',
       settings: '设置'
     };
     $('#pageTitle').textContent = titles[page] || page;
@@ -77,6 +78,7 @@ const router = {
         case 'ai-chat': await AIChatPage.render(main); break;
         case 'summary': await SummaryPage.render(main); break;
         case 'reminders': await RemindersPage.render(main); break;
+        case 'skincare': await SkincareDashboardPage.render(main); break;
         case 'settings': await SettingsPage.render(main); break;
         default: main.innerHTML = '<p>页面未找到</p>';
       }
