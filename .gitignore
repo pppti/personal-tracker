@@ -1,5 +1,14 @@
 node_modules/
+dist/
 data.db
+data.db-shm
+data.db-wal
 .env
 .claude/
+*.pyc
+__pycache__/
+*.zip
+*.mp3
+.venv/
+venv/
 company-package/
