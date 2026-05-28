@@ -65,9 +65,9 @@ function startScheduler() {
       lastDailyPush = { _date: now.date };
     }
 
-    // 1. Check individual reminders
+    // 1. Check one-time reminders
     const due = db.prepare(
-      "SELECT id, message, remind_at FROM reminders WHERE notified = 0 AND REPLACE(REPLACE(remind_at,'T',' '),'Z','') <= ?"
+      "SELECT id, message, remind_at FROM reminders WHERE notified = 0 AND recurring IS NULL AND REPLACE(REPLACE(remind_at,'T',' '),'Z','') <= ?"
     ).all(now.time);
 
     for (const r of due) {
@@ -77,6 +77,33 @@ function startScheduler() {
       ]).finally(() => {
         db.prepare('UPDATE reminders SET notified = 1 WHERE id = ?').run(r.id);
       });
+    }
+
+    // 2. Check recurring reminders (daily + monthly)
+    const recurring = db.prepare(
+      "SELECT id, message, remind_at, recurring, last_notified FROM reminders WHERE recurring IS NOT NULL"
+    ).all();
+
+    for (const r of recurring) {
+      let shouldFire = false;
+      if (r.recurring === 'daily') {
+        // remind_at: "HH:MM"
+        shouldFire = (r.remind_at === now.hm && r.last_notified !== now.hm);
+      } else if (r.recurring === 'monthly') {
+        // remind_at: "DD,HH:MM"
+        const [expectedDay, expectedTime] = r.remind_at.split(',');
+        shouldFire = (now.date.endsWith(`-${expectedDay}`) && expectedTime === now.hm && r.last_notified !== `${now.date}${now.hm}`);
+      }
+
+      if (shouldFire) {
+        const updateTime = r.recurring === 'monthly' ? `${now.date}${now.hm}` : now.hm;
+        Promise.allSettled([
+          sendNotification('定期提醒', r.message),
+          sendPushToAll('定期提醒', r.message)
+        ]).finally(() => {
+          db.prepare('UPDATE reminders SET last_notified = ? WHERE id = ?').run(updateTime, r.id);
+        });
+      }
     }
 
     // 2. Check daily digest times

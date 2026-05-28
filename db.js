@@ -56,6 +56,8 @@ db.exec(`
     message TEXT NOT NULL,
     remind_at TEXT NOT NULL,
     notified INTEGER DEFAULT 0,
+    recurring TEXT DEFAULT NULL,
+    last_notified TEXT,
     entry_id INTEGER,
     created_at TEXT DEFAULT (datetime('now','localtime')),
     FOREIGN KEY (entry_id) REFERENCES entries(id) ON DELETE SET NULL
@@ -195,5 +197,7 @@ try { db.exec('ALTER TABLE entries ADD COLUMN priority TEXT DEFAULT \'medium\'')
 try { db.exec('ALTER TABLE entries ADD COLUMN progress INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE entries ADD COLUMN parent_id INTEGER'); } catch {}
 try { db.exec('ALTER TABLE reminders ADD COLUMN entry_id INTEGER'); } catch {}
+try { db.exec('ALTER TABLE reminders ADD COLUMN recurring TEXT DEFAULT NULL'); } catch {}
+try { db.exec('ALTER TABLE reminders ADD COLUMN last_notified TEXT'); } catch {}
 
 module.exports = db;

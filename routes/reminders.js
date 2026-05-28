@@ -9,13 +9,14 @@ router.get('/', (_req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { message, remind_at } = req.body;
+  const { message, remind_at, recurring } = req.body;
   if (!message || !remind_at) return res.status(400).json({ error: 'Message and remind_at required' });
   const result = db.prepare(
-    'INSERT INTO reminders (message, remind_at) VALUES (?,?)'
-  ).run(message, remind_at);
+    'INSERT INTO reminders (message, remind_at, recurring) VALUES (?,?,?)'
+  ).run(message, remind_at, recurring || null);
   const row = db.prepare('SELECT * FROM reminders WHERE id = ?').get(result.lastInsertRowid);
-  sendNotification('新提醒已创建', `${row.message}（${row.remind_at}）`);
+  const label = recurring === 'daily' ? '每天提醒' : recurring === 'monthly' ? '每月提醒' : '提醒';
+  sendNotification(`新${label}已创建`, `${row.message}（${row.remind_at}）`);
   res.status(201).json(row);
 });
 
