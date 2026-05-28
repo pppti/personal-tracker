@@ -1,4 +1,4 @@
-const CACHE = 'tracker-v5';
+const CACHE = 'tracker-v6';
 const ASSETS = [
   '/',
   '/css/style.css',
@@ -35,11 +35,23 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
-  // Never cache API calls - always fetch fresh data
+  // Never cache API calls
   if (url.pathname.startsWith('/api/')) {
     e.respondWith(fetch(e.request));
     return;
   }
+  // Network-first for HTML (always get latest)
+  if (e.request.mode === 'navigate' || url.pathname === '/') {
+    e.respondWith(
+      fetch(e.request).then(res => {
+        const clone = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, clone));
+        return res;
+      }).catch(() => caches.match(e.request))
+    );
+    return;
+  }
+  // Cache-first for static assets
   e.respondWith(
     caches.match(e.request).then(cached => {
       return cached || fetch(e.request).then(res => {
