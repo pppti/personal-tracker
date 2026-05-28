@@ -74,7 +74,7 @@ const RemindersPage = {
       </div>
 
       <h3 style="font-size:0.9rem;margin:20px 0 10px;color:var(--text-dim);">已触发 (${past.length})</h3>
-      <div class="card">
+      <div class="card" id="pastList">
         ${past.length === 0 ? '<p style="color:var(--text-dim);font-size:0.85rem;">暂无</p>' :
           past.map(r => `
             <div class="reminder-row">
@@ -82,7 +82,7 @@ const RemindersPage = {
                 <div class="reminder-msg">${escapeHtml(r.message)}</div>
                 <div class="reminder-time">${formatDate(r.remind_at)}</div>
               </div>
-              <span style="font-size:0.75rem;color:var(--green);">已通知</span>
+              <button class="btn btn-outline btn-sm del-rem-btn" data-id="${r.id}">删除</button>
             </div>
           `).join('')}
       </div>
@@ -140,6 +140,24 @@ const RemindersPage = {
         btn.textContent = '删除'; btn.disabled = false;
       }
     });
+
+    const pastListEl = $('#pastList');
+    if (pastListEl) {
+      pastListEl.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.del-rem-btn');
+        if (!btn) return;
+        e.stopPropagation();
+        btn.textContent = '...'; btn.disabled = true;
+        try {
+          await API.del(`/api/reminders/${btn.dataset.id}`);
+          showToast('已删除');
+          this.render(container);
+        } catch (err) {
+          showToast('错误：' + err.message);
+          btn.textContent = '删除'; btn.disabled = false;
+        }
+      });
+    }
 
     const recurringListEl = $('#recurringList');
     if (recurringListEl) {
